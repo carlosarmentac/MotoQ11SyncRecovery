@@ -149,6 +149,16 @@ class AppStrings {
       'btn_ping': 'Ping Target',
       'btn_tracepath': 'Tracepath Route',
       'diag_target_ip_label': 'Target IP Address',
+      'unconfigured_network_title': 'No Mesh Topology Configured',
+      'unconfigured_network_desc':
+          'Scan your active physical LAN network to automatically discover your Motorola Q11 Master Router and Satellite nodes.',
+      'btn_autodetect_scan': 'Auto-Detect & Scan Network',
+      'btn_rescan_network': 'Re-Scan Entire Network',
+      'discovered_nodes_title': 'Discovered Motorola Q11 Devices',
+      'btn_add_to_topology': 'Add Selected to Topology',
+      'btn_set_as_master': 'Set as Master Gateway',
+      'btn_add_as_satellite': 'Add as Satellite Node',
+      'device_added_toast': 'Device added to Mesh Topology!',
       'disclaimer_title': 'Disclaimer & Community Notice',
       'disclaimer_text':
           'Use this tool entirely at your own risk. This project is an independent community and open-source effort aimed at rescuing and recycling abandoned devices such as the Motorola Q11. We are not affiliated with, endorsed by, or in any relationship with Motorola or Minim.',
@@ -301,6 +311,16 @@ class AppStrings {
       'btn_ping': 'Hacer Ping a IP',
       'btn_tracepath': 'Trazar Ruta (Tracepath)',
       'diag_target_ip_label': 'Dirección IP Objetivo',
+      'unconfigured_network_title': 'Sin Topología Mesh Configurada',
+      'unconfigured_network_desc':
+          'Escanea tu red física local para detectar automáticamente tu Router Maestro Motorola Q11 y los nodos Satélites.',
+      'btn_autodetect_scan': 'Autodetectar y Escanear Red',
+      'btn_rescan_network': 'Reescanear Toda la Red',
+      'discovered_nodes_title': 'Dispositivos Motorola Q11 Detectados',
+      'btn_add_to_topology': 'Agregar a la Topología',
+      'btn_set_as_master': 'Asignar como Maestro',
+      'btn_add_as_satellite': 'Agregar como Satélite',
+      'device_added_toast': '¡Dispositivo agregado a la Topología Mesh!',
       'disclaimer_title': 'Descargo de Responsabilidad y Aviso Comunitario',
       'disclaimer_text':
           'Usa esta herramienta bajo tu propio riesgo. Este proyecto es un esfuerzo comunitario independiente y de código abierto para rescatar y reciclar dispositivos abandonados como el Motorola Q11. No pertenecemos ni tenemos relación alguna con Motorola o Minim.',

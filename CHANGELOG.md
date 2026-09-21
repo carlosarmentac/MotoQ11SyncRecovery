@@ -36,6 +36,10 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 - **Storage & Backup**:
   - Local persistence via `SharedPreferences` with zero cloud lock-in.
   - Full JSON configuration export and import dialogs with clipboard and system share sheet integrations, including remembered custom device names.
+- **Mesh Topology Flow & Device Discovery**:
+  - Automatic unconfigured network detection prompting user to auto-detect and scan their physical LAN.
+  - Interactive device adoption allowing single-click assignment of discovered Motorola Q11 devices as Master Gateway or Satellite Node.
+  - Full network re-scan capability at any time from both the app bar and overview banner with live progress indicators.
 - **Internationalization (i18n)**:
   - English and Spanish (ES-MX) localized dictionaries with instant runtime language switching.
 - **Hardware Guides & Diagnostics**:

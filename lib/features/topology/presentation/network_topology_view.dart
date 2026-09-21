@@ -7,6 +7,7 @@ import '../../../core/storage/widgets/import_config_dialog.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../diagnostics/presentation/widgets/network_diagnostics_card.dart';
 import '../../diagnostics/providers/diagnostics_provider.dart';
+import '../../diagnostics/utils/local_network_detector.dart';
 import '../../models/models.dart';
 import 'painters/topology_canvas_painter.dart';
 import 'widgets/add_satellite_dialog.dart';
@@ -43,6 +44,59 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
     await ref.read(diagnosticsProvider.notifier).refreshClients(masterIp, wifiPassword);
   }
 
+  Future<void> _autoDetectAndScan() async {
+    final prefix = await LocalNetworkDetector.detectSubnetPrefix(defaultFallback: '192.168.1');
+    await ref.read(diagnosticsProvider.notifier).scanSubnet(prefix);
+  }
+
+  void _adoptDeviceAsMaster(SubnetScanResult item, String lang) {
+    final currentMaster = ref.read(masterNodeProvider);
+    final chosenName = item.customName.isNotEmpty
+        ? item.customName
+        : (item.role.isNotEmpty ? item.role : 'Master Gateway (${item.ip})');
+
+    ref.read(masterNodeProvider.notifier).update(
+      currentMaster.copyWith(
+        ipAddress: item.ip,
+        mac: item.macAddress,
+        name: chosenName,
+        isOnline: true,
+      ),
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${AppStrings.tr('device_added_toast', lang)} (${item.ip} -> Master)'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
+  void _adoptDeviceAsSatellite(SubnetScanResult item, String lang) {
+    final chosenName = item.customName.isNotEmpty
+        ? item.customName
+        : (item.role.isNotEmpty ? item.role : 'Satellite (${item.ip})');
+
+    final newSat = Q11Device(
+      id: 'sat-${DateTime.now().millisecondsSinceEpoch}',
+      name: chosenName,
+      role: NodeRole.satellite,
+      ipAddress: item.ip,
+      mac: item.macAddress,
+      isOnline: true,
+      backhaul: BackhaulType.wifi5g,
+    );
+
+    ref.read(satellitesProvider.notifier).addSatellite(newSat);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('${AppStrings.tr('device_added_toast', lang)} (${item.ip} -> Satellite)'),
+        duration: const Duration(seconds: 2),
+      ),
+    );
+  }
+
   void _showAddSatelliteDialog(BuildContext context, String lang) {
     AddSatelliteDialog.show(
       context,
@@ -59,6 +113,9 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
     final master = ref.watch(masterNodeProvider);
     final satellites = ref.watch(satellitesProvider);
     final diagState = ref.watch(diagnosticsProvider);
+    final storage = ref.watch(localStorageProvider);
+
+    final hasConfig = storage.hasConfiguredMaster() || satellites.isNotEmpty;
 
     return Scaffold(
       body: CustomScrollView(
@@ -71,6 +128,17 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
               style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
             ),
             actions: [
+              IconButton(
+                tooltip: AppStrings.tr('btn_rescan_network', lang),
+                icon: diagState.isScanning
+                    ? const SizedBox(
+                        width: 16,
+                        height: 16,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Icon(Icons.radar, size: 20),
+                onPressed: diagState.isScanning ? null : _autoDetectAndScan,
+              ),
               IconButton(
                 tooltip: AppStrings.tr('btn_refresh_network', lang),
                 icon: diagState.isRefreshingClients
@@ -88,7 +156,6 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                 tooltip: AppStrings.tr('btn_export_config', lang),
                 icon: const Icon(Icons.ios_share, size: 20),
                 onPressed: () {
-                  final storage = ref.read(localStorageProvider);
                   final jsonStr = storage.exportFullConfigJson();
                   showDialog(
                     context: context,
@@ -117,9 +184,21 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      // Overview & Storage Badge Banner
+                      // Overview & Storage Badge Banner with Re-scan
                       _buildOverviewBanner(lang, master, diagState),
                       const SizedBox(height: 16),
+
+                      // If network is unconfigured, show Auto-Detect Onboarding Banner
+                      if (!hasConfig) ...[
+                        _buildUnconfiguredNetworkBanner(lang, diagState),
+                        const SizedBox(height: 16),
+                      ],
+
+                      // Discovered Devices Section (if scan results exist)
+                      if (diagState.subnetResults.isNotEmpty) ...[
+                        _buildDiscoveredNodesCard(lang, diagState, master, satellites),
+                        const SizedBox(height: 16),
+                      ],
 
                       // Interactive Animated Topology Mesh Canvas
                       _buildCanvasCard(master, satellites),
@@ -298,6 +377,301 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
     );
   }
 
+  Widget _buildUnconfiguredNetworkBanner(String lang, DiagnosticsState diagState) {
+    return Card(
+      elevation: 3,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.primary, width: 1.5),
+      ),
+      color: AppColors.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(18),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.15),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.wifi_find_rounded, color: AppColors.primaryLight, size: 28),
+                ),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        AppStrings.tr('unconfigured_network_title', lang),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 16,
+                          color: AppColors.textPrimary,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        AppStrings.tr('unconfigured_network_desc', lang),
+                        style: const TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            if (diagState.isScanning) ...[
+              LinearProgressIndicator(
+                backgroundColor: AppColors.surfaceVariant,
+                color: AppColors.primaryLight,
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Scanning physical LAN subnet...',
+                    style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+                  ),
+                  Text(
+                    diagState.scanProgress,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryLight,
+                    ),
+                  ),
+                ],
+              ),
+            ] else ...[
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  style: FilledButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  icon: const Icon(Icons.search, size: 18),
+                  label: Text(
+                    AppStrings.tr('btn_autodetect_scan', lang),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                  ),
+                  onPressed: _autoDetectAndScan,
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiscoveredNodesCard(
+    String lang,
+    DiagnosticsState diagState,
+    Q11Device currentMaster,
+    List<Q11Device> currentSatellites,
+  ) {
+    final q11Nodes = diagState.subnetResults.where((r) => r.isQ11Device).toList();
+
+    return Card(
+      elevation: 2,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(14),
+        side: const BorderSide(color: AppColors.border),
+      ),
+      color: AppColors.surface,
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Row(
+                  children: [
+                    const Icon(Icons.devices_other, size: 18, color: AppColors.primaryLight),
+                    const SizedBox(width: 8),
+                    Text(
+                      '${AppStrings.tr('discovered_nodes_title', lang)} (${diagState.subnetResults.length})',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    ),
+                  ],
+                ),
+                TextButton.icon(
+                  style: TextButton.styleFrom(visualDensity: VisualDensity.compact),
+                  icon: diagState.isScanning
+                      ? const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryLight),
+                        )
+                      : const Icon(Icons.refresh, size: 14),
+                  label: Text(
+                    AppStrings.tr('btn_rescan_network', lang),
+                    style: const TextStyle(fontSize: 11),
+                  ),
+                  onPressed: diagState.isScanning ? null : _autoDetectAndScan,
+                ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: q11Nodes.isNotEmpty ? q11Nodes.length : diagState.subnetResults.length,
+              separatorBuilder: (_, _) => const Divider(color: AppColors.border, height: 1),
+              itemBuilder: (ctx, i) {
+                final item = q11Nodes.isNotEmpty ? q11Nodes[i] : diagState.subnetResults[i];
+                final isMoto = item.isQ11Device;
+                final isMasterInTopology = currentMaster.ipAddress == item.ip;
+                final isSatelliteInTopology = currentSatellites.any((s) => s.ipAddress == item.ip);
+
+                return Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(
+                            isMoto
+                                ? (item.isMaster ? Icons.router : Icons.hub)
+                                : Icons.devices,
+                            size: 18,
+                            color: isMoto ? AppColors.primaryLight : AppColors.textSecondary,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    Text(
+                                      item.customName.isNotEmpty ? item.customName : item.ip,
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                      ),
+                                    ),
+                                    if (item.customName.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '(${item.ip})',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                    const SizedBox(width: 8),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: item.isMaster
+                                            ? Colors.amber.withValues(alpha: 0.2)
+                                            : (isMoto
+                                                ? AppColors.primary.withValues(alpha: 0.2)
+                                                : AppColors.surfaceVariant),
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        item.role.isNotEmpty
+                                            ? item.role
+                                            : (item.isMaster
+                                                ? 'Master Gateway'
+                                                : (isMoto ? 'Satellite Node' : 'Host')),
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.w600,
+                                          color: item.isMaster
+                                              ? Colors.amber[300]
+                                              : (isMoto ? AppColors.primaryLight : AppColors.textSecondary),
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'MAC: ${item.macAddress.isNotEmpty ? item.macAddress : "Unknown"} • Ports: ${item.portsOpen.join(', ')}',
+                                  style: const TextStyle(
+                                    fontSize: 11,
+                                    fontFamily: 'monospace',
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      // Actions row
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          if (isMasterInTopology)
+                            const Chip(
+                              label: Text('Active Master', style: TextStyle(fontSize: 10, color: Colors.greenAccent)),
+                              backgroundColor: AppColors.surfaceVariant,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            )
+                          else
+                            OutlinedButton.icon(
+                              style: OutlinedButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              ),
+                              icon: const Icon(Icons.star_border, size: 14),
+                              label: Text(
+                                AppStrings.tr('btn_set_as_master', lang),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              onPressed: () => _adoptDeviceAsMaster(item, lang),
+                            ),
+                          const SizedBox(width: 8),
+                          if (isSatelliteInTopology)
+                            const Chip(
+                              label: Text('In Mesh', style: TextStyle(fontSize: 10, color: Colors.greenAccent)),
+                              backgroundColor: AppColors.surfaceVariant,
+                              visualDensity: VisualDensity.compact,
+                              padding: EdgeInsets.zero,
+                            )
+                          else
+                            FilledButton.tonalIcon(
+                              style: FilledButton.styleFrom(
+                                visualDensity: VisualDensity.compact,
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              ),
+                              icon: const Icon(Icons.add_link, size: 14),
+                              label: Text(
+                                AppStrings.tr('btn_add_as_satellite', lang),
+                                style: const TextStyle(fontSize: 11),
+                              ),
+                              onPressed: () => _adoptDeviceAsSatellite(item, lang),
+                            ),
+                        ],
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildOverviewBanner(String lang, Q11Device master, DiagnosticsState diagState) {
     return Card(
       elevation: 1,
@@ -308,45 +682,107 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
       color: AppColors.surfaceVariant.withValues(alpha: 0.5),
       child: Padding(
         padding: const EdgeInsets.all(14),
-        child: Row(
-          children: [
-            Expanded(
-              child: Column(
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final isNarrow = constraints.maxWidth < 500;
+            final textColumn = Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  AppStrings.tr('network_overview', lang),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  AppStrings.tr('local_storage_badge', lang),
+                  style: const TextStyle(
+                    fontSize: 11,
+                    color: AppColors.primaryLight,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            );
+
+            final buttons = Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                OutlinedButton(
+                  style: OutlinedButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  onPressed: diagState.isScanning ? null : _autoDetectAndScan,
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (diagState.isScanning)
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryLight),
+                        )
+                      else
+                        const Icon(Icons.radar, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        AppStrings.tr('btn_rescan_network', lang),
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: 8),
+                FilledButton(
+                  style: FilledButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                  ),
+                  onPressed: diagState.isRefreshingClients
+                      ? null
+                      : () => _handleRefresh(master.ipAddress, master.wifiPassword),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (diagState.isRefreshingClients)
+                        const SizedBox(
+                          width: 12,
+                          height: 12,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      else
+                        const Icon(Icons.sync, size: 14),
+                      const SizedBox(width: 6),
+                      Text(
+                        AppStrings.tr('btn_refresh_network', lang),
+                        style: const TextStyle(fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            );
+
+            if (isNarrow) {
+              return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    AppStrings.tr('network_overview', lang),
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    AppStrings.tr('local_storage_badge', lang),
-                    style: const TextStyle(
-                      fontSize: 11,
-                      color: AppColors.primaryLight,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
+                  textColumn,
+                  const SizedBox(height: 10),
+                  buttons,
                 ],
-              ),
-            ),
-            FilledButton.icon(
-              icon: diagState.isRefreshingClients
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.sync, size: 16),
-              label: Text(
-                AppStrings.tr('btn_refresh_network', lang),
-                style: const TextStyle(fontSize: 12),
-              ),
-              onPressed: diagState.isRefreshingClients
-                  ? null
-                  : () => _handleRefresh(master.ipAddress, master.wifiPassword),
-            ),
-          ],
+              );
+            }
+
+            return Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(child: textColumn),
+                buttons,
+              ],
+            );
+          },
         ),
       ),
     );

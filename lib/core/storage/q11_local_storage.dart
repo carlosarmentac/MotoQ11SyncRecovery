@@ -24,6 +24,15 @@ class Q11LocalStorage {
     await _prefs.setString(keyMasterNode, jsonEncode(device.toJson()));
   }
 
+  bool hasConfiguredMaster() {
+    final jsonStr = _prefs.getString(keyMasterNode);
+    return jsonStr != null && jsonStr.isNotEmpty;
+  }
+
+  bool hasAnyConfiguration() {
+    return hasConfiguredMaster() || getSatelliteNodes().isNotEmpty;
+  }
+
   Q11Device getMasterNode() {
     final jsonStr = _prefs.getString(keyMasterNode);
     if (jsonStr == null || jsonStr.isEmpty) {
