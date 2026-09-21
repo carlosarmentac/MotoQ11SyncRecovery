@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../providers/diagnostics_provider.dart';
+import '../../utils/local_network_detector.dart';
 
 class NetworkDiagnosticsCard extends ConsumerStatefulWidget {
   final String defaultTargetIp;
@@ -20,11 +21,35 @@ class NetworkDiagnosticsCard extends ConsumerStatefulWidget {
 
 class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard> {
   late TextEditingController _ipController;
+  String? _detectedSubnetPrefix;
+  bool _isDetectingLan = false;
 
   @override
   void initState() {
     super.initState();
     _ipController = TextEditingController(text: widget.defaultTargetIp);
+    _detectLocalLan();
+  }
+
+  Future<void> _detectLocalLan() async {
+    setState(() => _isDetectingLan = true);
+    final detectedRouter = await LocalNetworkDetector.detectDefaultRouterIp();
+    final prefix = await LocalNetworkDetector.detectSubnetPrefix(
+      defaultFallback: widget.defaultTargetIp.contains('.')
+          ? widget.defaultTargetIp.substring(0, widget.defaultTargetIp.lastIndexOf('.'))
+          : '192.168.1',
+    );
+
+    if (!mounted) return;
+
+    setState(() {
+      _isDetectingLan = false;
+      _detectedSubnetPrefix = prefix;
+      // If default was generic 192.168.1.1 and real LAN is detected (e.g. 10.10.11.1), update controller
+      if (detectedRouter != null && (widget.defaultTargetIp == '192.168.1.1' || _ipController.text.isEmpty)) {
+        _ipController.text = detectedRouter;
+      }
+    });
   }
 
   @override
@@ -75,30 +100,62 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
             ),
             const SizedBox(height: 12),
 
-            // Subnet Scan Button
-            ElevatedButton.icon(
-              icon: diagState.isScanning
-                  ? const SizedBox(
-                      width: 14,
-                      height: 14,
-                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                    )
-                  : const Icon(Icons.radar, size: 18),
-              label: Text(
-                diagState.isScanning
-                    ? 'Scanning (${diagState.scanProgress})...'
-                    : AppStrings.tr('btn_scan_subnet', lang),
-              ),
-              onPressed: isBusy
-                  ? null
-                  : () {
-                      final ip = _ipController.text.trim();
-                      final prefix = ip.contains('.')
-                          ? ip.substring(0, ip.lastIndexOf('.'))
-                          : '192.168.1';
-                      diagController.scanSubnet(prefix);
-                    },
+            // Subnet Scan Button & Detected Subnet Status
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    icon: diagState.isScanning
+                        ? const SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                          )
+                        : const Icon(Icons.radar, size: 18),
+                    label: Text(
+                      diagState.isScanning
+                          ? 'Scanning (${diagState.scanProgress})...'
+                          : '${AppStrings.tr('btn_scan_subnet', lang)}${_detectedSubnetPrefix != null ? ' ($_detectedSubnetPrefix.0/24)' : ''}',
+                    ),
+                    onPressed: isBusy
+                        ? null
+                        : () {
+                            final ip = _ipController.text.trim();
+                            final prefix = ip.contains('.')
+                                ? ip.substring(0, ip.lastIndexOf('.'))
+                                : (_detectedSubnetPrefix ?? '192.168.1');
+                            diagController.scanSubnet(prefix);
+                          },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                IconButton.outlined(
+                  tooltip: 'Re-detect Physical LAN Subnet',
+                  icon: _isDetectingLan
+                      ? const SizedBox(
+                          width: 14,
+                          height: 14,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.wifi_find, size: 18),
+                  onPressed: isBusy || _isDetectingLan ? null : _detectLocalLan,
+                ),
+              ],
             ),
+
+            if (_detectedSubnetPrefix != null) ...[
+              const SizedBox(height: 6),
+              Row(
+                children: [
+                  const Icon(Icons.lan, size: 13, color: AppColors.success),
+                  const SizedBox(width: 6),
+                  Text(
+                    'Active Physical LAN Subnet: $_detectedSubnetPrefix.0/24',
+                    style: const TextStyle(fontSize: 11, color: AppColors.success, fontWeight: FontWeight.w500),
+                  ),
+                ],
+              ),
+            ],
 
             // Subnet Scan Results List
             if (diagState.subnetResults.isNotEmpty) ...[
