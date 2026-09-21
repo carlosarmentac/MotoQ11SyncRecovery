@@ -162,6 +162,19 @@ Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath motoq
 - **Automatic Physical LAN Detection**: Identifies local subnet (`10.10.11.0/24`, `192.168.1.0/24`, etc.) excluding Docker virtual interfaces and VPNs.
 - **Smart Motorola Q11 Discrimination**: Probes characteristic OpenWrt ports (`22 Dropbear`, `53 DNS`, `80 Motosync UI`, `443 HTTPS`, `8080 HTTP Alt`, `7681 ttyd`) and checks system ARP cache against Motorola OUI (`c8:c7:50`).
 - **Master vs. Satellite Determination**: Uses system default gateway routing to automatically designate the Master Router vs. Mesh Satellite Nodes.
+- **Direct Connected Node Detection**: Identifies which specific mesh node the user's host machine is directly connected to via Wi-Fi BSSID matching and gateway route correlation, highlighted with a golden amber badge `Connected (You)`.
+- **Full Device Configuration Backup & Remote Restore**:
+  - Direct backup of device `/etc/config` over SSH encoded into portable Base64 `tar.gz` archives.
+  - Interactive restore dialog pushing configurations back to the router and triggering network service restarts (`/etc/init.d/network restart`).
+- **Web Admin & Web Terminal Shortcuts**:
+  - One-click launch of Web Admin UI (`http://<ip>:8080`).
+  - One-click launch of Web Terminal (`http://<ip>:7681`) powered by `ttyd`.
+- **Physical Device LED Identification**:
+  - Flashes front LED on the hardware router for 15 seconds (`/sys/class/leds/*`) with live canvas ripple animations to physically identify units in the house.
+- **Live Device Telemetry & Statistics**:
+  - Real-time SSH inspection of system uptime, CPU load average (`/proc/loadavg`), RAM usage & progress bar (`/proc/meminfo`), board name, kernel version, and live active broadcast SSIDs (`uci show wireless`, `iwinfo`).
+- **Integrated Network Speedtest**:
+  - Complete multi-stage throughput test measuring latency (ICMP ping), jitter, HTTP download throughput, and HTTP upload throughput against CDN endpoints.
 - **Persistent Friendly Device Naming**: Lets users assign and remember custom names (e.g., *"Living Room Gateway"*, *"Office Satellite"*) indexed by IP and hardware MAC address.
-- **Interactive Animated Mesh Topology**: Visualizes mesh backhaul links, signal strength (dBm), and real-time packet transit.
+- **Interactive Animated Mesh Topology**: Visualizes mesh backhaul links, signal strength (dBm), pulse ripples on flashing nodes, connected user indicators, and real-time packet transit.
 - **Pure-Dart SSH & CGI Exploit Engine**: Direct firmware deployment without requiring external SSH or curl binaries.

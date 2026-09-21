@@ -6,6 +6,29 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.2.0] - 2026-09-21
+
+### Added
+- **Direct Connected Mesh Node Identification**:
+  - Automatically identifies which specific Motorola Q11 unit (Master or Satellite) the host device is directly associated with via Linux `iw dev <iface> link` BSSID matching and default gateway route fallback.
+  - Highlights the directly connected node with a golden amber badge `Connected (You)` on node cards and a golden identification ring on the interactive topology canvas.
+- **Physical Device LED Flash Identification (15 Seconds)**:
+  - Added 15-second physical LED blink toggle via SSH to locate specific hardware nodes in the premises (`/sys/class/leds/*`).
+  - Integrated animated cyan pulse wave rings on the canvas and countdown indicators on the UI cards while flashing.
+- **Device Telemetry & Real-Time Statistics**:
+  - Live SSH telemetry querying system uptime, CPU load average (`/proc/loadavg`), RAM usage with dynamic visual progress indicator (`/proc/meminfo`), hardware board name, and kernel version.
+- **Configured Broadcast SSID Inspection**:
+  - Added live query of all configured and transmitting wireless network SSIDs across radios using `uci show wireless` and `iwinfo`.
+- **Integrated Network Speedtest**:
+  - Implemented multi-stage network speed test measuring ICMP latency, jitter, download throughput (Mbps), and upload throughput (Mbps) against CDN endpoints with real-time status messaging.
+- **Web Admin & Web Terminal Shortcuts**:
+  - Added direct external launch buttons on Master and Satellite cards for Web Admin (`:8080`) and Web Terminal (`:7681`).
+- **Device Configuration Backup & Remote Restore**:
+  - Added remote backup of router `/etc/config` over SSH into portable Base64 `tar.gz` archives.
+  - Interactive restore dialog to paste Base64 tarballs and push them to the router with automated network service reload.
+
+---
+
 ## [0.1.0] - 2026-09-21
 
 ### Added

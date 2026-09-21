@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/models.dart';
+import '../../patcher/domain/q11_patch_engine.dart';
 import '../../../core/providers/app_providers.dart';
 
 class DiagnosticsState {
@@ -11,6 +12,10 @@ class DiagnosticsState {
   final String consoleOutput;
   final List<DhcpClient> dhcpClients;
   final bool isRefreshingClients;
+  final Map<String, DeviceTelemetry> deviceTelemetry;
+  final SpeedtestResult speedtestResult;
+  final String? localConnectedNodeIp;
+  final Set<String> flashingNodeIps;
 
   const DiagnosticsState({
     this.subnetResults = const [],
@@ -21,6 +26,10 @@ class DiagnosticsState {
     this.consoleOutput = '',
     this.dhcpClients = const [],
     this.isRefreshingClients = false,
+    this.deviceTelemetry = const {},
+    this.speedtestResult = const SpeedtestResult(),
+    this.localConnectedNodeIp,
+    this.flashingNodeIps = const {},
   });
 
   DiagnosticsState copyWith({
@@ -32,6 +41,10 @@ class DiagnosticsState {
     String? consoleOutput,
     List<DhcpClient>? dhcpClients,
     bool? isRefreshingClients,
+    Map<String, DeviceTelemetry>? deviceTelemetry,
+    SpeedtestResult? speedtestResult,
+    String? localConnectedNodeIp,
+    Set<String>? flashingNodeIps,
   }) {
     return DiagnosticsState(
       subnetResults: subnetResults ?? this.subnetResults,
@@ -42,6 +55,10 @@ class DiagnosticsState {
       consoleOutput: consoleOutput ?? this.consoleOutput,
       dhcpClients: dhcpClients ?? this.dhcpClients,
       isRefreshingClients: isRefreshingClients ?? this.isRefreshingClients,
+      deviceTelemetry: deviceTelemetry ?? this.deviceTelemetry,
+      speedtestResult: speedtestResult ?? this.speedtestResult,
+      localConnectedNodeIp: localConnectedNodeIp ?? this.localConnectedNodeIp,
+      flashingNodeIps: flashingNodeIps ?? this.flashingNodeIps,
     );
   }
 }
@@ -79,6 +96,9 @@ class DiagnosticsController extends StateNotifier<DiagnosticsState> {
         isScanning: false,
         subnetResults: enriched,
       );
+
+      // Auto check connected node if nodes available
+      await identifyConnectedNode();
     } catch (_) {
       state = state.copyWith(isScanning: false);
     }
@@ -166,8 +186,96 @@ class DiagnosticsController extends StateNotifier<DiagnosticsState> {
         isRefreshingClients: false,
         dhcpClients: clients,
       );
+
+      // Refresh connected node detection
+      await identifyConnectedNode();
     } catch (_) {
       state = state.copyWith(isRefreshingClients: false);
+    }
+  }
+
+  /// Flash device LED for 15 seconds to locate unit
+  Future<bool> flashDeviceLed(String ip, String wifiPassword) async {
+    final patchEngine = _ref.read(patchEngineProvider);
+    final active = Set<String>.from(state.flashingNodeIps)..add(ip);
+    state = state.copyWith(flashingNodeIps: active);
+
+    try {
+      final success = await patchEngine.flashDeviceLed(ip, wifiPassword, durationSeconds: 15);
+      Future.delayed(const Duration(seconds: 15), () {
+        final current = Set<String>.from(state.flashingNodeIps)..remove(ip);
+        state = state.copyWith(flashingNodeIps: current);
+      });
+      return success;
+    } catch (e) {
+      final current = Set<String>.from(state.flashingNodeIps)..remove(ip);
+      state = state.copyWith(flashingNodeIps: current);
+      return false;
+    }
+  }
+
+  /// Fetch important statistics and configured SSIDs for a device
+  Future<DeviceTelemetry?> fetchDeviceStats(String ip, String wifiPassword) async {
+    final patchEngine = _ref.read(patchEngineProvider);
+    try {
+      final stats = await patchEngine.fetchDeviceStatistics(ip, wifiPassword);
+      final updatedMap = Map<String, DeviceTelemetry>.from(state.deviceTelemetry);
+      updatedMap[ip] = stats;
+      state = state.copyWith(deviceTelemetry: updatedMap);
+      return stats;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Identify which mesh node the user's host machine is directly connected to
+  Future<String?> identifyConnectedNode() async {
+    final master = _ref.read(masterNodeProvider);
+    final satellites = _ref.read(satellitesProvider);
+    final allNodes = [master, ...satellites];
+
+    final connectedIp = await Q11PatchEngine.identifyLocalConnectedNode(allNodes);
+    state = state.copyWith(localConnectedNodeIp: connectedIp);
+    return connectedIp;
+  }
+
+  /// Run network speedtest
+  Future<SpeedtestResult> runSpeedTest() async {
+    final patchEngine = _ref.read(patchEngineProvider);
+    state = state.copyWith(
+      speedtestResult: const SpeedtestResult(
+        stage: SpeedtestStage.measuringLatency,
+        statusMessage: 'Starting network speed test...',
+      ),
+    );
+
+    final finalResult = await patchEngine.runSpeedTest(
+      onProgress: (current) {
+        state = state.copyWith(speedtestResult: current);
+      },
+    );
+
+    state = state.copyWith(speedtestResult: finalResult);
+    return finalResult;
+  }
+
+  /// Full backup of device OpenWrt `/etc/config`
+  Future<String?> backupDeviceConfig(String ip, String wifiPassword) async {
+    final patchEngine = _ref.read(patchEngineProvider);
+    try {
+      return await patchEngine.backupDeviceConfig(ip, wifiPassword);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Restore configuration tarball to device over SSH
+  Future<bool> restoreDeviceConfig(String ip, String wifiPassword, String configBase64) async {
+    final patchEngine = _ref.read(patchEngineProvider);
+    try {
+      return await patchEngine.restoreDeviceConfig(ip, wifiPassword, configBase64);
+    } catch (_) {
+      return false;
     }
   }
 }

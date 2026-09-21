@@ -5,3 +5,5 @@ export 'subnet_scan_result.dart';
 export 'ping_result.dart';
 export 'tracepath_result.dart';
 export 'qr_scan_result.dart';
+export 'device_telemetry.dart';
+export 'speedtest_result.dart';

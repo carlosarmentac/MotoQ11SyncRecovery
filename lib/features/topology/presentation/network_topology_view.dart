@@ -201,7 +201,7 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                       ],
 
                       // Interactive Animated Topology Mesh Canvas
-                      _buildCanvasCard(master, satellites),
+                      _buildCanvasCard(master, satellites, diagState, lang),
                       const SizedBox(height: 16),
 
                       // Master Node Section
@@ -788,7 +788,14 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
     );
   }
 
-  Widget _buildCanvasCard(Q11Device master, List<Q11Device> satellites) {
+  Widget _buildCanvasCard(
+    Q11Device master,
+    List<Q11Device> satellites,
+    DiagnosticsState diagState,
+    String lang,
+  ) {
+    final connectedIp = diagState.localConnectedNodeIp;
+
     return Card(
       elevation: 2,
       shape: RoundedRectangleBorder(
@@ -803,16 +810,38 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
             color: AppColors.surface,
-            child: const Row(
+            child: Row(
               children: [
-                Icon(Icons.hub_outlined, size: 16, color: AppColors.primaryLight),
-                SizedBox(width: 8),
-                Text(
+                const Icon(Icons.hub_outlined, size: 16, color: AppColors.primaryLight),
+                const SizedBox(width: 8),
+                const Text(
                   'Live Mesh Topology Canvas',
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
                 ),
-                Spacer(),
-                Text(
+                const Spacer(),
+                if (connectedIp != null) ...[
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.2),
+                      borderRadius: BorderRadius.circular(4),
+                      border: Border.all(color: Colors.amber.withValues(alpha: 0.6), width: 0.8),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.laptop_chromebook, size: 12, color: Colors.amber),
+                        const SizedBox(width: 4),
+                        Text(
+                          'You are on $connectedIp',
+                          style: const TextStyle(fontSize: 10, color: Colors.amber, fontWeight: FontWeight.bold),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                ],
+                const Text(
                   'Auto-sync',
                   style: TextStyle(fontSize: 10, color: AppColors.textSecondary),
                 ),
@@ -820,7 +849,7 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
             ),
           ),
           SizedBox(
-            height: 190,
+            height: 200,
             child: AnimatedBuilder(
               animation: _pulseController,
               builder: (context, _) {
@@ -829,6 +858,8 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                     masterNode: master,
                     satellites: satellites,
                     animationProgress: _pulseController.value,
+                    localConnectedNodeIp: diagState.localConnectedNodeIp,
+                    flashingNodeIps: diagState.flashingNodeIps,
                   ),
                 );
               },

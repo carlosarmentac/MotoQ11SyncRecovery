@@ -419,8 +419,155 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                 ),
               ),
             ],
+
+            const SizedBox(height: 16),
+            const Divider(color: AppColors.border, height: 1),
+            const SizedBox(height: 14),
+
+            // Speedtest Section
+            _buildSpeedtestSection(lang, diagState, diagController),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _buildSpeedtestSection(
+    String lang,
+    DiagnosticsState diagState,
+    DiagnosticsController diagController,
+  ) {
+    final speed = diagState.speedtestResult;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.speed, color: AppColors.primaryLight, size: 20),
+                const SizedBox(width: 8),
+                Text(
+                  AppStrings.tr('speedtest_title', lang),
+                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                ),
+              ],
+            ),
+            FilledButton.tonalIcon(
+              style: FilledButton.styleFrom(visualDensity: VisualDensity.compact),
+              icon: speed.isRunning
+                  ? const SizedBox(
+                      width: 12,
+                      height: 12,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow, size: 14),
+              label: Text(
+                speed.isRunning ? 'Testing...' : AppStrings.tr('btn_start_speedtest', lang),
+                style: const TextStyle(fontSize: 11),
+              ),
+              onPressed: speed.isRunning ? null : () => diagController.runSpeedTest(),
+            ),
+          ],
+        ),
+        if (speed.isRunning) ...[
+          const SizedBox(height: 8),
+          const LinearProgressIndicator(
+            backgroundColor: AppColors.surfaceVariant,
+            color: AppColors.primaryLight,
+          ),
+          const SizedBox(height: 6),
+          Text(
+            speed.statusMessage,
+            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+          ),
+        ],
+        const SizedBox(height: 10),
+        Row(
+          children: [
+            Expanded(
+              child: _buildSpeedMetric(
+                label: AppStrings.tr('speedtest_latency', lang),
+                value: speed.pingMs > 0 ? '${speed.pingMs.toStringAsFixed(1)} ms' : '--',
+                icon: Icons.timer_outlined,
+                color: Colors.cyanAccent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSpeedMetric(
+                label: AppStrings.tr('speedtest_jitter', lang),
+                value: speed.jitterMs > 0 ? '${speed.jitterMs.toStringAsFixed(1)} ms' : '--',
+                icon: Icons.grain,
+                color: Colors.tealAccent,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSpeedMetric(
+                label: AppStrings.tr('speedtest_download', lang),
+                value: speed.downloadMbps > 0 ? '${speed.downloadMbps.toStringAsFixed(1)} Mbps' : '--',
+                icon: Icons.download,
+                color: AppColors.success,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: _buildSpeedMetric(
+                label: AppStrings.tr('speedtest_upload', lang),
+                value: speed.uploadMbps > 0 ? '${speed.uploadMbps.toStringAsFixed(1)} Mbps' : '--',
+                icon: Icons.upload,
+                color: Colors.amber,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSpeedMetric({
+    required String label,
+    required String value,
+    required IconData icon,
+    required Color color,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: AppColors.surfaceVariant.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: AppColors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, size: 12, color: color),
+              const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  label,
+                  style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: TextStyle(
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              color: color,
+              fontFamily: 'monospace',
+            ),
+          ),
+        ],
       ),
     );
   }

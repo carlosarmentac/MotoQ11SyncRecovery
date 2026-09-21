@@ -6,11 +6,15 @@ class TopologyCanvasPainter extends CustomPainter {
   final Q11Device masterNode;
   final List<Q11Device> satellites;
   final double animationProgress; // 0.0 to 1.0
+  final String? localConnectedNodeIp;
+  final Set<String> flashingNodeIps;
 
   TopologyCanvasPainter({
     required this.masterNode,
     required this.satellites,
     required this.animationProgress,
+    this.localConnectedNodeIp,
+    this.flashingNodeIps = const {},
   });
 
   @override
@@ -151,6 +155,27 @@ class TopologyCanvasPainter extends CustomPainter {
   }) {
     final radius = isMaster ? 26.0 : 20.0;
     final statusColor = device.isOnline ? AppColors.success : AppColors.error;
+    final isConnectedToYou = localConnectedNodeIp != null && device.ipAddress == localConnectedNodeIp;
+    final isFlashing = flashingNodeIps.contains(device.ipAddress);
+
+    // Flashing LED animation
+    if (isFlashing) {
+      final flashRadius = radius + (animationProgress * 20.0);
+      final flashPaint = Paint()
+        ..color = Colors.cyanAccent.withValues(alpha: (1.0 - animationProgress).clamp(0.0, 0.9))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 3.0;
+      canvas.drawCircle(center, flashRadius, flashPaint);
+    }
+
+    // Connected to user highlight ring
+    if (isConnectedToYou) {
+      final ringPaint = Paint()
+        ..color = Colors.amber.withValues(alpha: 0.8)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.0;
+      canvas.drawCircle(center, radius + 9, ringPaint);
+    }
 
     // Animated pulse wave around active node
     if (device.isOnline) {
@@ -176,7 +201,9 @@ class TopologyCanvasPainter extends CustomPainter {
     canvas.drawCircle(center, radius, bodyPaint);
 
     final borderPaint = Paint()
-      ..color = isMaster ? AppColors.primaryLight : AppColors.primary
+      ..color = isConnectedToYou
+          ? Colors.amber
+          : (isMaster ? AppColors.primaryLight : AppColors.primary)
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2.5;
     canvas.drawCircle(center, radius, borderPaint);
@@ -192,7 +219,7 @@ class TopologyCanvasPainter extends CustomPainter {
       text: TextSpan(
         text: isMaster ? 'GW' : 'SAT',
         style: TextStyle(
-          color: isMaster ? AppColors.primaryLight : AppColors.textPrimary,
+          color: isConnectedToYou ? Colors.amber : (isMaster ? AppColors.primaryLight : AppColors.textPrimary),
           fontSize: isMaster ? 11 : 9,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.5,
@@ -227,10 +254,11 @@ class TopologyCanvasPainter extends CustomPainter {
     // IP label under name
     final ipPainter = TextPainter(
       text: TextSpan(
-        text: device.ipAddress,
-        style: const TextStyle(
-          color: AppColors.textSecondary,
+        text: isConnectedToYou ? '${device.ipAddress} (You)' : device.ipAddress,
+        style: TextStyle(
+          color: isConnectedToYou ? Colors.amber : AppColors.textSecondary,
           fontSize: 10,
+          fontWeight: isConnectedToYou ? FontWeight.bold : FontWeight.normal,
           fontFamily: 'monospace',
         ),
       ),
@@ -246,6 +274,9 @@ class TopologyCanvasPainter extends CustomPainter {
   bool shouldRepaint(covariant TopologyCanvasPainter oldDelegate) {
     return oldDelegate.animationProgress != animationProgress ||
         oldDelegate.masterNode != masterNode ||
-        oldDelegate.satellites != satellites;
+        oldDelegate.satellites != satellites ||
+        oldDelegate.localConnectedNodeIp != localConnectedNodeIp ||
+        oldDelegate.flashingNodeIps != flashingNodeIps;
   }
 }
+

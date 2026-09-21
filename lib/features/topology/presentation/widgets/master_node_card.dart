@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_strings.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../diagnostics/providers/diagnostics_provider.dart';
 import '../../../models/models.dart';
 
 class MasterNodeCard extends StatelessWidget {
@@ -186,7 +188,7 @@ class MasterNodeCard extends StatelessWidget {
                       AppStrings.tr('btn_open_admin', lang),
                       style: const TextStyle(fontSize: 12),
                     ),
-                    onPressed: () => _launchUrl(context, 'http://${node.ipAddress}/cgi-bin/admin.sh'),
+                    onPressed: () => _launchUrl(context, 'http://${node.ipAddress}:8080'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -202,8 +204,347 @@ class MasterNodeCard extends StatelessWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 8),
+
+            // Secondary Quick Actions: Flash LED (15s) and Device Stats
+            Row(
+              children: [
+                Expanded(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      final diagState = ref.watch(diagnosticsProvider);
+                      final isFlashing = diagState.flashingNodeIps.contains(node.ipAddress);
+
+                      return OutlinedButton.icon(
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: isFlashing ? Colors.cyanAccent : AppColors.primaryLight,
+                          side: BorderSide(
+                            color: isFlashing ? Colors.cyanAccent : AppColors.primary.withValues(alpha: 0.5),
+                          ),
+                        ),
+                        icon: isFlashing
+                            ? const SizedBox(
+                                width: 14,
+                                height: 14,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.cyanAccent),
+                              )
+                            : const Icon(Icons.lightbulb_outline, size: 16),
+                        label: Text(
+                          isFlashing ? 'Flashing (15s)...' : AppStrings.tr('btn_identify_led', lang),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        onPressed: isFlashing
+                            ? null
+                            : () async {
+                                final notifier = ref.read(diagnosticsProvider.notifier);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                    content: Text(AppStrings.tr('flashing_led_toast', lang, [node.ipAddress])),
+                                    duration: const Duration(seconds: 3),
+                                  ),
+                                );
+                                await notifier.flashDeviceLed(node.ipAddress, node.wifiPassword);
+                              },
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      return OutlinedButton.icon(
+                        icon: const Icon(Icons.insights, size: 16),
+                        label: Text(
+                          AppStrings.tr('btn_device_stats', lang),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        onPressed: () => _showDeviceStatsDialog(context, ref, lang),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+
+            // Tertiary Quick Actions: Device Config Backup & Restore
+            Row(
+              children: [
+                Expanded(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      return OutlinedButton.icon(
+                        icon: const Icon(Icons.download_for_offline_outlined, size: 15),
+                        label: Text(
+                          AppStrings.tr('btn_backup_device', lang),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        onPressed: () => _handleBackupDeviceConfig(context, ref, lang),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Consumer(
+                    builder: (context, ref, _) {
+                      return OutlinedButton.icon(
+                        icon: const Icon(Icons.settings_backup_restore_outlined, size: 15),
+                        label: Text(
+                          AppStrings.tr('btn_restore_device', lang),
+                          style: const TextStyle(fontSize: 11),
+                        ),
+                        onPressed: () => _handleRestoreDeviceConfig(context, ref, lang),
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showDeviceStatsDialog(BuildContext context, WidgetRef ref, String lang) async {
+    showDialog(
+      context: context,
+      builder: (ctx) {
+        return FutureBuilder<DeviceTelemetry?>(
+          future: ref.read(diagnosticsProvider.notifier).fetchDeviceStats(node.ipAddress, node.wifiPassword),
+          builder: (context, snapshot) {
+            final stats = snapshot.data;
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.analytics_outlined, color: AppColors.primaryLight, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      '${AppStrings.tr('device_stats_title', lang)} (${node.ipAddress})',
+                      style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+              content: SizedBox(
+                width: double.maxFinite,
+                child: snapshot.connectionState == ConnectionState.waiting
+                    ? const Padding(
+                        padding: EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircularProgressIndicator(),
+                            SizedBox(height: 12),
+                            Text('Querying router telemetry via SSH...', style: TextStyle(fontSize: 12)),
+                          ],
+                        ),
+                      )
+                    : stats == null
+                        ? const Text('Could not retrieve telemetry. Ensure SSH is running.', style: TextStyle(fontSize: 12))
+                        : SingleChildScrollView(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                _buildStatRow(AppStrings.tr('uptime_label', lang), stats.uptime),
+                                const Divider(height: 16),
+                                _buildStatRow(AppStrings.tr('cpu_load_label', lang), stats.cpuLoad.toStringAsFixed(2)),
+                                const Divider(height: 16),
+                                _buildStatRow(
+                                  AppStrings.tr('memory_usage_label', lang),
+                                  '${stats.usedMemMb} MB / ${stats.totalMemMb} MB (${stats.memoryUsagePercent.toStringAsFixed(1)}%)',
+                                ),
+                                const SizedBox(height: 8),
+                                ClipRRect(
+                                  borderRadius: BorderRadius.circular(4),
+                                  child: LinearProgressIndicator(
+                                    value: stats.memoryUsagePercent / 100,
+                                    backgroundColor: AppColors.surfaceVariant,
+                                    color: stats.memoryUsagePercent > 85 ? AppColors.warning : AppColors.primary,
+                                    minHeight: 6,
+                                  ),
+                                ),
+                                const Divider(height: 20),
+                                Text(
+                                  AppStrings.tr('active_ssids_label', lang),
+                                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                const SizedBox(height: 6),
+                                if (stats.configuredSsids.isEmpty)
+                                  Text(AppStrings.tr('no_ssids_found', lang), style: const TextStyle(fontSize: 11, color: AppColors.textSecondary))
+                                else
+                                  Wrap(
+                                    spacing: 6,
+                                    runSpacing: 6,
+                                    children: stats.configuredSsids.map((ssid) {
+                                      return Chip(
+                                        avatar: const Icon(Icons.wifi, size: 14, color: AppColors.primaryLight),
+                                        label: Text(ssid, style: const TextStyle(fontSize: 11)),
+                                        backgroundColor: AppColors.surfaceVariant,
+                                        visualDensity: VisualDensity.compact,
+                                      );
+                                    }).toList(),
+                                  ),
+                              ],
+                            ),
+                          ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(ctx).pop(),
+                  child: Text(AppStrings.tr('btn_cancel', lang)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+  }
+
+  Widget _buildStatRow(String label, String value) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
+        Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
+      ],
+    );
+  }
+
+  void _handleBackupDeviceConfig(BuildContext context, WidgetRef ref, String lang) async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => const Center(child: CircularProgressIndicator()),
+    );
+
+    final base64Tar = await ref.read(diagnosticsProvider.notifier).backupDeviceConfig(
+          node.ipAddress,
+          node.wifiPassword,
+        );
+
+    if (context.mounted) {
+      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
+    }
+
+    if (!context.mounted) return;
+
+    if (base64Tar != null && base64Tar.isNotEmpty) {
+      showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: Text(AppStrings.tr('btn_backup_device', lang)),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(AppStrings.tr('device_backup_success', lang)),
+              const SizedBox(height: 12),
+              const Text('Raw /etc/config archive (Base64 tar.gz):', style: TextStyle(fontSize: 11, color: AppColors.textSecondary)),
+              const SizedBox(height: 6),
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: AppColors.surfaceVariant,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                constraints: const BoxConstraints(maxHeight: 120),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    base64Tar,
+                    style: const TextStyle(fontFamily: 'monospace', fontSize: 10),
+                  ),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(),
+              child: Text(AppStrings.tr('btn_cancel', lang)),
+            ),
+          ],
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to backup config over SSH.')),
+      );
+    }
+  }
+
+  void _handleRestoreDeviceConfig(BuildContext context, WidgetRef ref, String lang) {
+    final controller = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('${AppStrings.tr('btn_restore_device', lang)} (${node.ipAddress})'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Paste the Base64 configuration tarball to restore /etc/config on the device:',
+              style: TextStyle(fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              maxLines: 4,
+              decoration: const InputDecoration(
+                hintText: 'H4sIC...',
+                border: OutlineInputBorder(),
+              ),
+              style: const TextStyle(fontFamily: 'monospace', fontSize: 11),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: Text(AppStrings.tr('btn_cancel', lang)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final text = controller.text.trim();
+              if (text.isEmpty) return;
+              Navigator.of(ctx).pop();
+
+              showDialog(
+                context: context,
+                barrierDismissible: false,
+                builder: (loadingCtx) => const Center(child: CircularProgressIndicator()),
+              );
+
+              final success = await ref.read(diagnosticsProvider.notifier).restoreDeviceConfig(
+                    node.ipAddress,
+                    node.wifiPassword,
+                    text,
+                  );
+
+              if (context.mounted) {
+                Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(
+                      success
+                          ? AppStrings.tr('device_restore_success', lang, [node.ipAddress])
+                          : AppStrings.tr('device_restore_failed', lang),
+                    ),
+                    backgroundColor: success ? AppColors.success : AppColors.error,
+                  ),
+                );
+              }
+            },
+            child: Text(AppStrings.tr('btn_restore_device', lang)),
+          ),
+        ],
       ),
     );
   }
