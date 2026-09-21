@@ -21,7 +21,7 @@ class TestSuiteCard extends StatelessWidget {
   });
 
   Future<void> _openAdminUrl() async {
-    final uri = Uri.parse('http://$masterIp:8080');
+    final uri = Uri.parse('http://$masterIp/cgi-bin/admin.sh');
     if (await canLaunchUrl(uri)) {
       await launchUrl(uri, mode: LaunchMode.externalApplication);
     }

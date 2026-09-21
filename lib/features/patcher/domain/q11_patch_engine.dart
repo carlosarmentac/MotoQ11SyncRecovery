@@ -169,9 +169,52 @@ uci commit ttyd
     return responsivePorts > 0;
   }
 
-  /// Fetch active DHCP client leases from the master router via SSH
+  /// Fetch active DHCP client leases from the master router.
+  /// First tries HTTP (admin.sh CGI, no auth), then SSH fallback.
   Future<List<DhcpClient>> fetchDhcpClients(String ip, String wifiPassword) async {
     final list = <DhcpClient>[];
+
+    // 1. HTTP approach — scrape admin.sh DHCP Leases section
+    try {
+      final httpClient = _createTrustAllHttpClient();
+      try {
+        final request = await httpClient.getUrl(Uri.parse('http://$ip/cgi-bin/admin.sh'));
+        final response = await request.close();
+        if (response.statusCode == 200) {
+          final html = await response.transform(utf8.decoder).join();
+          final dhcpMatch = RegExp(
+            r'<h2>DHCP Leases</h2>\s*<pre>\s*(.*?)\s*</pre>',
+            dotAll: true,
+          ).firstMatch(html);
+          if (dhcpMatch != null) {
+            final raw = dhcpMatch.group(1) ?? '';
+            for (final line in raw.split('\n')) {
+              final tokens = line.trim().split(RegExp(r'\s+'));
+              if (tokens.length >= 4) {
+                final leaseTime = tokens[0];
+                final mac = tokens[1];
+                final clientIp = tokens[2];
+                final rawName = tokens[3];
+                final name = rawName == '*'
+                    ? 'Client-${mac.length >= 5 ? mac.substring(mac.length - 5) : mac}'
+                    : rawName;
+                list.add(DhcpClient(
+                  leaseTime: leaseTime,
+                  mac: mac,
+                  ip: clientIp,
+                  name: name,
+                ));
+              }
+            }
+            if (list.isNotEmpty) return list;
+          }
+        }
+      } finally {
+        httpClient.close();
+      }
+    } catch (_) {}
+
+    // 2. SSH fallback
     SSHClient? client;
     try {
       final socket = await SSHSocket.connect(
@@ -618,8 +661,18 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
     }
   }
 
-  /// Query live configured broadcast SSIDs from the device over SSH
+  /// Query live configured broadcast SSIDs from the device.
+  /// First tries HTTP (admin.sh CGI page, no auth), then falls back to SSH.
   Future<List<String>> fetchDeviceSsids(String ip, String wifiPassword) async {
+    // Try HTTP first — fast, no auth needed
+    try {
+      final telemetry = await fetchDeviceStatistics(ip, wifiPassword);
+      if (telemetry.configuredSsids.isNotEmpty) {
+        return telemetry.configuredSsids;
+      }
+    } catch (_) {}
+
+    // SSH fallback
     SSHClient? client;
     final ssids = <String>{};
     try {
@@ -634,9 +687,8 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
         onPasswordRequest: () => wifiPassword,
       );
 
-      // Query uci wireless configuration and iwinfo
       final cmd = '''
-uci show wireless 2>/dev/null | grep -E '\\.ssid=' | cut -d'=' -f2 | tr -d "'\\""
+uci show wireless 2>/dev/null | grep -E '.ssid=' | cut -d'=' -f2 | tr -d "'\\""
 iwinfo 2>/dev/null | grep 'ESSID:' | awk -F'"' '{print \$2}'
 ''';
       final output = await _executeSshCommand(client, cmd);
@@ -646,16 +698,115 @@ iwinfo 2>/dev/null | grep 'ESSID:' | awk -F'"' '{print \$2}'
           ssids.add(trimmed);
         }
       }
-      return ssids.toList();
-    } catch (e) {
-      return ssids.toList();
+    } catch (_) {}
+    client?.close();
+    return ssids.toList();
+  }
+
+  /// Fetch device statistics by scraping the admin.sh CGI page over HTTP (no credentials needed).
+  /// Parses: System uptime, RAM usage, WiFi SSID, firmware version.
+  Future<DeviceTelemetry> _fetchDeviceStatisticsHttp(String ip) async {
+    final httpClient = _createTrustAllHttpClient();
+    try {
+      final uri = Uri.parse('http://$ip/cgi-bin/admin.sh');
+      final request = await httpClient.getUrl(uri);
+      final response = await request.close();
+      if (response.statusCode != 200) throw Exception('HTTP ${response.statusCode}');
+      final html = await response.transform(utf8.decoder).join();
+
+      // Parse System section: uptime + memory
+      String uptimeStr = 'Unknown';
+      double cpuLoad = 0.0;
+      int totalMem = 0;
+      int freeMem = 0;
+      final ssids = <String>{};
+      String boardName = 'Motorola Q11 (MH760x)';
+      String kernelVer = '';
+
+      // Extract firmware version
+      final fwMatch = RegExp(r'<b>Firmware:</b>\s*([^<]+)').firstMatch(html);
+      if (fwMatch != null) {
+        kernelVer = fwMatch.group(1)?.trim() ?? '';
+      }
+
+      // Extract System pre block (contains uptime + free)
+      final sysMatch = RegExp(
+        r'<h2>System</h2>\s*<pre>\s*(.*?)\s*</pre>',
+        dotAll: true,
+      ).firstMatch(html);
+      if (sysMatch != null) {
+        final sysText = sysMatch.group(1) ?? '';
+        final lines = sysText.split('\n');
+        // First line: " 05:17:09 up 11 days, 23:51,  load average: 0.07, 0.10, 0.05"
+        if (lines.isNotEmpty) {
+          uptimeStr = lines.first.trim();
+          // Extract load average
+          final loadMatch = RegExp(r'load average:\s*([\d.]+)').firstMatch(uptimeStr);
+          if (loadMatch != null) {
+            cpuLoad = double.tryParse(loadMatch.group(1) ?? '') ?? 0.0;
+          }
+          // Simplify uptime display: extract "up X days/hours" part
+          final upMatch = RegExp(r'up\s+([^,]+(?:,\s*\d+:\d+)?)').firstMatch(uptimeStr);
+          if (upMatch != null) {
+            uptimeStr = 'Up ${upMatch.group(1)?.trim() ?? ''}; Load: ${cpuLoad.toStringAsFixed(2)}';
+          }
+        }
+        // Parse memory: "Mem:     249660      170064       31896..."
+        final memMatch = RegExp(r'Mem:\s+(\d+)\s+(\d+)\s+(\d+)').firstMatch(sysText);
+        if (memMatch != null) {
+          totalMem = ((int.tryParse(memMatch.group(1) ?? '') ?? 0) / 1024).round();
+          freeMem = ((int.tryParse(memMatch.group(3) ?? '') ?? 0) / 1024).round();
+        }
+      }
+
+      // Extract WiFi SSID from WiFi Status section
+      final wifiMatch = RegExp(
+        r'<h2>WiFi Status</h2>\s*<pre>\s*(.*?)\s*</pre>',
+        dotAll: true,
+      ).firstMatch(html);
+      if (wifiMatch != null) {
+        final wifiText = wifiMatch.group(1) ?? '';
+        final ssidMatch = RegExp(r'SSID:\s*"([^"]+)"').firstMatch(wifiText);
+        if (ssidMatch != null) {
+          ssids.add(ssidMatch.group(1)!);
+        }
+        // Also try bssid to extract multiple
+        for (final m in RegExp(r'SSID:\s*"([^"]+)"').allMatches(wifiText)) {
+          final s = m.group(1);
+          if (s != null && s.isNotEmpty) ssids.add(s);
+        }
+      }
+
+      final usedMem = totalMem > 0 ? (totalMem - freeMem).clamp(0, totalMem) : 0;
+
+      return DeviceTelemetry(
+        ip: ip,
+        uptime: uptimeStr.isEmpty ? 'Unknown' : uptimeStr,
+        cpuLoad: cpuLoad,
+        totalMemMb: totalMem > 0 ? totalMem : 256,
+        freeMemMb: freeMem,
+        usedMemMb: usedMem,
+        configuredSsids: ssids.toList(),
+        kernelVersion: kernelVer,
+        boardName: boardName,
+        timestamp: DateTime.now().millisecondsSinceEpoch,
+      );
     } finally {
-      client?.close();
+      httpClient.close();
     }
   }
 
-  /// Query important device statistics: Uptime, CPU loadavg, Memory usage, kernel and board info
+  /// Query important device statistics: Uptime, CPU load, Memory usage, and SSIDs.
+  /// Tries HTTP (admin.sh CGI, no auth) first, then SSH fallback.
   Future<DeviceTelemetry> fetchDeviceStatistics(String ip, String wifiPassword) async {
+    // 1. HTTP approach — no SSH/password needed
+    try {
+      return await _fetchDeviceStatisticsHttp(ip);
+    } catch (_) {
+      // HTTP unavailable, try SSH
+    }
+
+    // 2. SSH fallback (requires valid root password)
     SSHClient? client;
     try {
       final socket = await SSHSocket.connect(
@@ -681,7 +832,7 @@ cat /tmp/sysinfo/model 2>/dev/null || uname -m
 echo "---UNAME---"
 uname -r
 echo "---SSIDS---"
-uci show wireless 2>/dev/null | grep -E '\\.ssid=' | cut -d'=' -f2 | tr -d "'\\""
+uci show wireless 2>/dev/null | grep -E '.ssid=' | cut -d'=' -f2 | tr -d "'\\""
 ''';
       final output = await _executeSshCommand(client, cmd);
 

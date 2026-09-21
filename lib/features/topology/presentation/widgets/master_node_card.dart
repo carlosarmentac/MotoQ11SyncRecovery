@@ -188,7 +188,7 @@ class MasterNodeCard extends StatelessWidget {
                       AppStrings.tr('btn_open_admin', lang),
                       style: const TextStyle(fontSize: 12),
                     ),
-                    onPressed: () => _launchUrl(context, 'http://${node.ipAddress}:8080'),
+                    onPressed: () => _launchUrl(context, 'http://${node.ipAddress}/cgi-bin/admin.sh'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -416,7 +416,70 @@ class MasterNodeCard extends StatelessWidget {
     );
   }
 
+  /// Ask for SSH password if wifiPassword is empty or if the operation requires it.
+  Future<String?> _promptSshPassword(BuildContext context, String nodeIp, String currentPassword) async {
+    if (currentPassword.isNotEmpty) return currentPassword;
+
+    final controller = TextEditingController();
+    bool obscure = true;
+
+    final result = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setState) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.lock_open, size: 20, color: AppColors.primaryLight),
+              const SizedBox(width: 8),
+              Expanded(child: Text('SSH Password for $nodeIp', style: const TextStyle(fontSize: 14))),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the root SSH password for this device. Common defaults: empty, "admin", or your Wi-Fi password.',
+                style: TextStyle(fontSize: 12, color: AppColors.textSecondary),
+              ),
+              const SizedBox(height: 12),
+              TextField(
+                controller: controller,
+                obscureText: obscure,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'SSH Root Password',
+                  hintText: 'Leave empty to try no password',
+                  suffixIcon: IconButton(
+                    icon: Icon(obscure ? Icons.visibility_off : Icons.visibility, size: 18),
+                    onPressed: () => setState(() => obscure = !obscure),
+                  ),
+                ),
+                onSubmitted: (val) => Navigator.of(ctx).pop(val),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(null),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.of(ctx).pop(controller.text),
+              child: const Text('Connect'),
+            ),
+          ],
+        ),
+      ),
+    );
+    return result;
+  }
+
   void _handleBackupDeviceConfig(BuildContext context, WidgetRef ref, String lang) async {
+    // Prompt for SSH password if not configured
+    final password = await _promptSshPassword(context, node.ipAddress, node.wifiPassword);
+    if (password == null || !context.mounted) return; // user cancelled
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -425,11 +488,11 @@ class MasterNodeCard extends StatelessWidget {
 
     final base64Tar = await ref.read(diagnosticsProvider.notifier).backupDeviceConfig(
           node.ipAddress,
-          node.wifiPassword,
+          password,
         );
 
     if (context.mounted) {
-      Navigator.of(context, rootNavigator: true).pop(); // dismiss loading
+      Navigator.of(context, rootNavigator: true).pop();
     }
 
     if (!context.mounted) return;
@@ -516,6 +579,11 @@ class MasterNodeCard extends StatelessWidget {
               if (text.isEmpty) return;
               Navigator.of(ctx).pop();
 
+              // Prompt for SSH password before restore
+              if (!context.mounted) return;
+              final password = await _promptSshPassword(context, node.ipAddress, node.wifiPassword);
+              if (password == null || !context.mounted) return;
+
               showDialog(
                 context: context,
                 barrierDismissible: false,
@@ -524,7 +592,7 @@ class MasterNodeCard extends StatelessWidget {
 
               final success = await ref.read(diagnosticsProvider.notifier).restoreDeviceConfig(
                     node.ipAddress,
-                    node.wifiPassword,
+                    password,
                     text,
                   );
 

@@ -6,6 +6,25 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.2.1] - 2026-09-21
+
+### Fixed
+- **Web Admin URL corrected to `/cgi-bin/admin.sh`**:
+  - Master and Satellite node cards were pointing the "Open Admin" button to `http://<ip>:8080` which is the stock Motorola motosync download page.
+  - Now correctly opens `http://<ip>/cgi-bin/admin.sh` — the actual OpenWrt router admin panel deployed by the patch script.
+- **Device Stats now work without SSH credentials**:
+  - `fetchDeviceStatistics` previously required a valid Dropbear SSH session (which fails when no password is known).
+  - Replaced primary strategy with HTTP scraping of `/cgi-bin/admin.sh` (no auth required), parsing uptime, CPU load average, RAM usage, and configured SSIDs directly from the CGI page HTML.
+  - SSH remains as a secondary fallback for when HTTP is unavailable.
+- **DHCP Leases now loaded via HTTP fallback**:
+  - `fetchDhcpClients` also scrapes the admin.sh DHCP Leases section as primary source (no SSH), SSH remains as fallback.
+- **Backup/Restore SSH password prompt**:
+  - When `wifiPassword` is empty (device adopted from network scan without explicit setup), backup and restore dialogs now display a password entry dialog before attempting SSH.
+  - Users can leave it empty to try passwordless SSH, or enter their router's root password.
+  - All three bug areas: Web Admin, Stats, Backup — now work correctly against unpatched and patched Q11 routers.
+
+---
+
 ## [0.2.0] - 2026-09-21
 
 ### Added

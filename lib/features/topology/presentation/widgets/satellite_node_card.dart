@@ -124,7 +124,7 @@ class SatelliteNodeCard extends StatelessWidget {
                       AppStrings.tr('btn_open_admin', lang),
                       style: const TextStyle(fontSize: 11),
                     ),
-                    onPressed: () => _launchUrl(context, 'http://${satellite.ipAddress}:8080'),
+                    onPressed: () => _launchUrl(context, 'http://${satellite.ipAddress}/cgi-bin/admin.sh'),
                   ),
                 ),
                 const SizedBox(width: 6),
