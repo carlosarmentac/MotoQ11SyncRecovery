@@ -4,6 +4,8 @@ class SubnetScanResult {
   final List<int> portsOpen;
   final int rttMs;
   final String hostname;
+  final String macAddress;
+  final String role;
 
   const SubnetScanResult({
     required this.ip,
@@ -11,6 +13,8 @@ class SubnetScanResult {
     required this.portsOpen,
     required this.rttMs,
     this.hostname = '',
+    this.macAddress = '',
+    this.role = '',
   });
 
   Map<String, dynamic> toJson() => {
@@ -19,6 +23,8 @@ class SubnetScanResult {
         'portsOpen': portsOpen,
         'rttMs': rttMs,
         'hostname': hostname,
+        'macAddress': macAddress,
+        'role': role,
       };
 
   factory SubnetScanResult.fromJson(Map<String, dynamic> json) => SubnetScanResult(
@@ -27,6 +33,8 @@ class SubnetScanResult {
         portsOpen: (json['portsOpen'] as List<dynamic>?)?.map((e) => (e as num).toInt()).toList() ?? [],
         rttMs: (json['rttMs'] as num?)?.toInt() ?? 0,
         hostname: json['hostname'] as String? ?? '',
+        macAddress: json['macAddress'] as String? ?? '',
+        role: json['role'] as String? ?? '',
       );
 
   @override

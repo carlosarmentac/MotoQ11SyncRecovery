@@ -55,8 +55,21 @@ class LocalNetworkDetector {
   }
 
   /// Suggests the best local LAN gateway IP or router candidate (e.g. 192.168.1.1, 10.10.11.1).
-  /// If the host has a valid LAN IP, it returns the base network with .1 or the router address.
+  /// Resolves the actual default route gateway if available, or falls back to .1.
   static Future<String?> detectDefaultRouterIp() async {
+    // 1. Try resolving via default route command (Linux / Android)
+    try {
+      final res = await Process.run('ip', ['route', 'show', 'match', '0/0']);
+      if (res.exitCode == 0) {
+        final match = RegExp(r'default via ([\d.]+)\b').firstMatch(res.stdout as String);
+        if (match != null) {
+          final gw = match.group(1)!;
+          if (_isCandidateLanIp(gw)) return gw;
+        }
+      }
+    } catch (_) {}
+
+    // 2. Fallback to physical interface IP prefix with .1
     final ips = await detectLanIps();
     if (ips.isEmpty) return null;
 

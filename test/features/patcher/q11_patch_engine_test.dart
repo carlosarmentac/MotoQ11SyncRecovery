@@ -75,5 +75,50 @@ rtt min/avg/max/mdev = 11.800/12.350/13.100/0.485 ms
       expect(clients[1].name, equals('Client-ee:ff'));
       expect(clients[1].ip, equals('192.168.1.101'));
     });
+
+    test('discriminates Motorola Q11 devices using MAC vendor OUI and roles', () {
+      final gateway = SubnetScanResult(
+        ip: '10.10.11.1',
+        isQ11Device: true,
+        portsOpen: [22, 53, 80, 443, 8080, 7681],
+        rttMs: 2,
+        hostname: 'Motorola Q11 (Master)',
+        macAddress: 'c8:c7:50:dd:b6:20',
+        role: 'Main Gateway / Master Router (Motorola Q11)',
+      );
+
+      final satellite = SubnetScanResult(
+        ip: '10.10.11.34',
+        isQ11Device: true,
+        portsOpen: [22, 53, 443, 8080, 7681],
+        rttMs: 4,
+        hostname: 'Motorola Q11 (Satellite 1)',
+        macAddress: 'c8:c7:50:dd:b5:18',
+        role: 'Mesh Satellite Node 1 (Motorola Q11)',
+      );
+
+      final otherDevice = SubnetScanResult(
+        ip: '10.10.11.122',
+        isQ11Device: false,
+        portsOpen: [80],
+        rttMs: 15,
+        hostname: 'Network Host',
+        macAddress: '78:df:72:91:63:f8',
+        role: '',
+      );
+
+      expect(gateway.isQ11Device, isTrue);
+      expect(gateway.macAddress.startsWith('c8:c7:50'), isTrue);
+      expect(gateway.role, contains('Main Gateway / Master Router'));
+
+      expect(satellite.isQ11Device, isTrue);
+      expect(satellite.macAddress.startsWith('c8:c7:50'), isTrue);
+      expect(satellite.role, contains('Mesh Satellite Node 1'));
+
+      expect(otherDevice.isQ11Device, isFalse);
+      expect(otherDevice.macAddress.startsWith('c8:c7:50'), isFalse);
+      expect(otherDevice.role, isEmpty);
+    });
   });
 }
+

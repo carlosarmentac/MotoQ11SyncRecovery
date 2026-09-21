@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:dartssh2/dartssh2.dart';
 import '../../models/models.dart';
+import '../../diagnostics/utils/arp_helper.dart';
 import '../../../core/errors/failure.dart';
 
 class Q11PatchEngine {
@@ -296,6 +297,8 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
   }
 
   /// Parallel non-blocking subnet discovery sweep (1 to 254)
+  /// Accurately discriminates Motorola Q11 devices via MAC vendor (c8:c7:50 / Motorola OUI)
+  /// and characteristic OpenWrt mesh services (Dropbear 22, DNS 53, HTTP 80/8080, HTTPS 443, ttyd 7681).
   Future<List<SubnetScanResult>> scanSubnet({
     String baseIpPrefix = '192.168.1',
     void Function(int current, int total)? onProgress,
@@ -308,6 +311,9 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
     const poolSize = 32;
     final hostList = List.generate(totalHosts, (i) => i + 1);
 
+    // Key ports to accurately discriminate routers and Motorola mesh services
+    const portsToTest = [22, 53, 80, 443, 8080, 7681];
+
     for (var i = 0; i < hostList.length; i += poolSize) {
       final chunk = hostList.sublist(
         i,
@@ -319,7 +325,6 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
         final stopwatch = Stopwatch()..start();
         final openPorts = <int>[];
 
-        const portsToTest = [80, 22, 8080, 7681];
         for (final port in portsToTest) {
           try {
             final socket = await Socket.connect(
@@ -335,16 +340,12 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
         stopwatch.stop();
 
         if (openPorts.isNotEmpty) {
-          final isQ11 = openPorts.contains(22) ||
-              openPorts.contains(80) ||
-              openPorts.contains(8080);
-
           discovered.add(SubnetScanResult(
             ip: targetIp,
-            isQ11Device: isQ11,
+            isQ11Device: false, // Resolved in post-processing via MAC & service fingerprint
             portsOpen: openPorts,
             rttMs: stopwatch.elapsedMilliseconds,
-            hostname: isQ11 ? 'Motorola Q11 Router' : 'Network Host',
+            hostname: 'Network Host',
           ));
         }
 
@@ -355,8 +356,70 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
       await Future.wait(futures);
     }
 
-    discovered.sort((a, b) => a.ip.compareTo(b.ip));
-    return discovered;
+    // Post-processing: fetch ARP table to verify MAC vendors and service fingerprints
+    final arpTable = await ArpHelper.getArpTable();
+
+    // Determine default gateway IP to distinguish Master Gateway from Satellites
+    String defaultGateway = '$baseIpPrefix.1';
+    try {
+      final res = await Process.run('ip', ['route', 'show', 'match', '0/0']);
+      if (res.exitCode == 0) {
+        final match = RegExp(r'default via ([\d.]+)\b').firstMatch(res.stdout as String);
+        if (match != null) defaultGateway = match.group(1)!;
+      }
+    } catch (_) {}
+
+    final results = <SubnetScanResult>[];
+    int satelliteIndex = 1;
+
+    for (final host in discovered) {
+      final mac = arpTable[host.ip] ?? '';
+      final open = host.portsOpen;
+
+      // 1. MAC Vendor Check: Motorola OUI c8:c7:50 (or common Motorola OUIs 00:14:e8, 00:0c:e5, 14:30:04)
+      final hasMotoMac = mac.startsWith('c8:c7:50') ||
+          mac.startsWith('00:14:e8') ||
+          mac.startsWith('00:0c:e5') ||
+          mac.startsWith('14:30:04');
+
+      // 2. Q11 Port Signature:
+      // Dropbear SSH (22) + DNS (53) + HTTP/Alt (80 or 8080) + optional ttyd (7681) / HTTPS (443)
+      final hasDropbearAndDns = open.contains(22) && open.contains(53);
+      final hasWebAdmin = open.contains(80) || open.contains(8080);
+      final hasTtyd = open.contains(7681);
+
+      final isQ11 = hasMotoMac || (hasDropbearAndDns && hasWebAdmin && (hasTtyd || open.contains(443)));
+
+      String role = '';
+      String hostname = 'Network Host';
+
+      if (isQ11) {
+        final isMaster = (host.ip == defaultGateway) || (host.ip.endsWith('.1') && open.contains(80));
+        if (isMaster) {
+          role = 'Main Gateway / Master Router (Motorola Q11)';
+          hostname = 'Motorola Q11 (Master)';
+        } else {
+          role = 'Mesh Satellite Node $satelliteIndex (Motorola Q11)';
+          hostname = 'Motorola Q11 (Satellite $satelliteIndex)';
+          satelliteIndex++;
+        }
+      } else if (open.contains(80) || open.contains(443)) {
+        hostname = 'Web Server / Device';
+      }
+
+      results.add(SubnetScanResult(
+        ip: host.ip,
+        isQ11Device: isQ11,
+        portsOpen: host.portsOpen,
+        rttMs: host.rttMs,
+        hostname: hostname,
+        macAddress: mac,
+        role: role,
+      ));
+    }
+
+    results.sort((a, b) => a.ip.compareTo(b.ip));
+    return results;
   }
 
   /// Cross-platform ICMP reachability and latency test

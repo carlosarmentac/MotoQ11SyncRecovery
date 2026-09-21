@@ -18,7 +18,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - CGI trigger exploitation payload dispatch over HTTPS (`badCertificateCallback` bypass for self-signed router certs).
   - Pure-Dart SSH client (`dartssh2`) for provisioning script deployment and service configuration.
   - Multi-port socket verification on ports `22` (SSH), `80/8080` (LuCI HTTP), and `7681` (ttyd Web Terminal).
-  - High-performance subnet port scanner (`1..254`) with device fingerprinting and RTT latency measurements.
+  - **Smart Motorola Device Detection & Discrimination**:
+    - Automatic physical LAN subnet detection (`LocalNetworkDetector`) filtering out virtual interfaces (Docker bridges, VPNs, WireGuard, Tailscale).
+    - Host ARP table integration (`ArpHelper`) matching Motorola OUI prefixes (`c8:c7:50`, etc.).
+    - Characteristic multi-port probing (`22 Dropbear SSH`, `53 DNS`, `80 Motosync Web UI`, `443 HTTPS`, `8080 HTTP Alt`, `7681 ttyd Web Terminal`) to reliably discriminate Motorola Q11 Master Gateway from Mesh Satellites and other non-Motorola LAN hosts.
+  - High-performance subnet port scanner (`1..254`) with device fingerprinting, role tagging, and RTT latency measurements.
   - ICMP Ping and Tracepath execution with real-time hop discovery and dark console visualization.
   - DHCP lease client polling via SSH `/tmp/dhcp.leases` inspection.
 - **UI/UX & Design System**:

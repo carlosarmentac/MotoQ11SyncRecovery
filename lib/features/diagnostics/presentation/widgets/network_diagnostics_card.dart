@@ -160,13 +160,26 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
             // Subnet Scan Results List
             if (diagState.subnetResults.isNotEmpty) ...[
               const SizedBox(height: 10),
-              Text(
-                'Discovered Devices (${diagState.subnetResults.length}):',
-                style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Discovered Devices (${diagState.subnetResults.length}):',
+                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 12),
+                  ),
+                  Text(
+                    '${diagState.subnetResults.where((r) => r.isQ11Device).length} Motorola Q11 nodes detected',
+                    style: const TextStyle(
+                      fontSize: 11,
+                      color: AppColors.primaryLight,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 6),
               Container(
-                constraints: const BoxConstraints(maxHeight: 150),
+                constraints: const BoxConstraints(maxHeight: 220),
                 decoration: BoxDecoration(
                   color: AppColors.surfaceVariant.withValues(alpha: 0.4),
                   borderRadius: BorderRadius.circular(8),
@@ -179,38 +192,86 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                   separatorBuilder: (_, _) => const Divider(color: AppColors.border, height: 1),
                   itemBuilder: (ctx, i) {
                     final item = diagState.subnetResults[i];
+                    final isMoto = item.isQ11Device;
+                    final roleText = item.role.isNotEmpty
+                        ? item.role
+                        : (isMoto ? 'Motorola Q11 Node' : 'Standard Network Host');
+
                     return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 4),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+                          Row(
                             children: [
+                              Icon(
+                                isMoto ? Icons.router : Icons.devices,
+                                size: 16,
+                                color: isMoto ? AppColors.primaryLight : AppColors.textSecondary,
+                              ),
+                              const SizedBox(width: 6),
                               Text(
                                 item.ip,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 12,
+                                  fontSize: 13,
                                   fontFamily: 'monospace',
                                 ),
                               ),
-                              Text(
-                                item.isQ11Device
-                                    ? 'Motorola Q11 (Ports: ${item.portsOpen.join(', ')})'
-                                    : 'Network Host (Ports: ${item.portsOpen.join(', ')})',
-                                style: TextStyle(
-                                  fontSize: 10,
-                                  color: item.isQ11Device
-                                      ? AppColors.primaryLight
-                                      : AppColors.textSecondary,
+                              const SizedBox(width: 8),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: isMoto
+                                      ? AppColors.primary.withValues(alpha: 0.2)
+                                      : AppColors.surfaceVariant,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(
+                                    color: isMoto ? AppColors.primaryLight : AppColors.border,
+                                    width: 0.8,
+                                  ),
                                 ),
+                                child: Text(
+                                  roleText,
+                                  style: TextStyle(
+                                    fontSize: 10,
+                                    fontWeight: FontWeight.w600,
+                                    color: isMoto ? AppColors.primaryLight : AppColors.textSecondary,
+                                  ),
+                                ),
+                              ),
+                              const Spacer(),
+                              Text(
+                                '${item.rttMs} ms',
+                                style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
                               ),
                             ],
                           ),
-                          Text(
-                            '${item.rttMs} ms',
-                            style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
+                          const SizedBox(height: 4),
+                          Row(
+                            children: [
+                              if (item.macAddress.isNotEmpty) ...[
+                                Text(
+                                  'MAC: ${item.macAddress}',
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                              ],
+                              Expanded(
+                                child: Text(
+                                  'Services: ${_formatPorts(item.portsOpen)}',
+                                  style: const TextStyle(
+                                    fontSize: 10,
+                                    color: AppColors.textSecondary,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ],
                           ),
                         ],
                       ),
@@ -314,5 +375,19 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
         ),
       ),
     );
+  }
+
+  String _formatPorts(List<int> ports) {
+    if (ports.isEmpty) return 'None detected';
+    final serviceNames = {
+      22: '22 (SSH Dropbear)',
+      53: '53 (DNS)',
+      80: '80 (HTTP Motosync UI)',
+      443: '443 (HTTPS)',
+      8080: '8080 (HTTP Alt)',
+      7681: '7681 (ttyd Terminal)',
+    };
+
+    return ports.map((p) => serviceNames[p] ?? '$p').join(' • ');
   }
 }
