@@ -66,13 +66,41 @@ class DiagnosticsController extends StateNotifier<DiagnosticsState> {
           state = state.copyWith(scanProgress: '$curr / $total');
         },
       );
+
+      final customNames = _ref.read(customDeviceNamesProvider);
+      final enriched = results.map((r) {
+        final savedName = customNames[r.macAddress.toLowerCase()] ??
+            customNames[r.ip] ??
+            '';
+        return r.copyWith(customName: savedName);
+      }).toList();
+
       state = state.copyWith(
         isScanning: false,
-        subnetResults: results,
+        subnetResults: enriched,
       );
     } catch (_) {
       state = state.copyWith(isScanning: false);
     }
+  }
+
+  Future<void> updateDeviceCustomName(String identifier, String newName, {String? macAddress}) async {
+    final storage = _ref.read(localStorageProvider);
+    if (macAddress != null && macAddress.isNotEmpty) {
+      await storage.setDeviceName(macAddress, newName);
+    }
+    await storage.setDeviceName(identifier, newName);
+    _ref.read(customDeviceNamesProvider.notifier).refreshFromStorage();
+
+    // Also update current state in-place
+    final updatedList = state.subnetResults.map((r) {
+      if (r.ip == identifier || (macAddress != null && r.macAddress == macAddress)) {
+        return r.copyWith(customName: newName.trim());
+      }
+      return r;
+    }).toList();
+
+    state = state.copyWith(subnetResults: updatedList);
   }
 
   Future<void> runPing(String targetIp) async {

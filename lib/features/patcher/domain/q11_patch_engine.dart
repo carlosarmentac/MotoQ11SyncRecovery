@@ -393,8 +393,9 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
       String role = '';
       String hostname = 'Network Host';
 
+      bool isMaster = false;
       if (isQ11) {
-        final isMaster = (host.ip == defaultGateway) || (host.ip.endsWith('.1') && open.contains(80));
+        isMaster = (host.ip == defaultGateway) || (host.ip.endsWith('.1') && open.contains(80));
         if (isMaster) {
           role = 'Main Gateway / Master Router (Motorola Q11)';
           hostname = 'Motorola Q11 (Master)';
@@ -415,6 +416,7 @@ wifi reload 2>/dev/null || wifi 2>/dev/null || true
         hostname: hostname,
         macAddress: mac,
         role: role,
+        isMaster: isMaster,
       ));
     }
 

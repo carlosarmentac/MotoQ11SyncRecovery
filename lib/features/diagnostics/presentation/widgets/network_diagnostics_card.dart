@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
+import '../../../models/models.dart';
 import '../../providers/diagnostics_provider.dart';
 import '../../utils/local_network_detector.dart';
 
@@ -72,6 +74,7 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
     final lang = widget.language;
     final diagState = ref.watch(diagnosticsProvider);
     final diagController = ref.read(diagnosticsProvider.notifier);
+    final savedCustomNames = ref.watch(customDeviceNamesProvider);
 
     final isBusy = diagState.isRunningPing || diagState.isRunningTrace || diagState.isScanning;
 
@@ -197,6 +200,13 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                         ? item.role
                         : (isMoto ? 'Motorola Q11 Node' : 'Standard Network Host');
 
+                    final customName = item.customName.isNotEmpty
+                        ? item.customName
+                        : (savedCustomNames[item.macAddress.toLowerCase()] ??
+                            savedCustomNames[item.ip] ??
+                            '');
+                    final displayName = customName.isNotEmpty ? customName : item.ip;
+
                     return Padding(
                       padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 4),
                       child: Column(
@@ -205,17 +215,40 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                           Row(
                             children: [
                               Icon(
-                                isMoto ? Icons.router : Icons.devices,
+                                isMoto
+                                    ? (item.isMaster ? Icons.router : Icons.hub)
+                                    : Icons.devices,
                                 size: 16,
                                 color: isMoto ? AppColors.primaryLight : AppColors.textSecondary,
                               ),
                               const SizedBox(width: 6),
-                              Text(
-                                item.ip,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 13,
-                                  fontFamily: 'monospace',
+                              Expanded(
+                                child: Row(
+                                  children: [
+                                    Flexible(
+                                      child: Text(
+                                        displayName,
+                                        style: TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 13,
+                                          fontFamily: customName.isNotEmpty ? null : 'monospace',
+                                          color: customName.isNotEmpty ? Colors.white : null,
+                                        ),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    if (customName.isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '(${item.ip})',
+                                        style: const TextStyle(
+                                          fontFamily: 'monospace',
+                                          fontSize: 11,
+                                          color: AppColors.textSecondary,
+                                        ),
+                                      ),
+                                    ],
+                                  ],
                                 ),
                               ),
                               const SizedBox(width: 8),
@@ -223,11 +256,15 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                                 padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                 decoration: BoxDecoration(
                                   color: isMoto
-                                      ? AppColors.primary.withValues(alpha: 0.2)
+                                      ? (item.isMaster
+                                          ? AppColors.primary.withValues(alpha: 0.25)
+                                          : AppColors.primaryContainer.withValues(alpha: 0.4))
                                       : AppColors.surfaceVariant,
                                   borderRadius: BorderRadius.circular(4),
                                   border: Border.all(
-                                    color: isMoto ? AppColors.primaryLight : AppColors.border,
+                                    color: isMoto
+                                        ? (item.isMaster ? AppColors.primaryLight : AppColors.secondary)
+                                        : AppColors.border,
                                     width: 0.8,
                                   ),
                                 ),
@@ -236,11 +273,22 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                                   style: TextStyle(
                                     fontSize: 10,
                                     fontWeight: FontWeight.w600,
-                                    color: isMoto ? AppColors.primaryLight : AppColors.textSecondary,
+                                    color: isMoto
+                                        ? (item.isMaster ? AppColors.primaryLight : AppColors.secondary)
+                                        : AppColors.textSecondary,
                                   ),
                                 ),
                               ),
-                              const Spacer(),
+                              const SizedBox(width: 4),
+                              IconButton(
+                                icon: const Icon(Icons.edit_note, size: 16, color: AppColors.textSecondary),
+                                tooltip: 'Set custom name for ${item.ip}',
+                                visualDensity: VisualDensity.compact,
+                                padding: EdgeInsets.zero,
+                                constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                                onPressed: () => _showRenameDialog(context, ref, item, customName),
+                              ),
+                              const SizedBox(width: 4),
                               Text(
                                 '${item.rttMs} ms',
                                 style: const TextStyle(fontSize: 11, color: AppColors.textSecondary),
@@ -390,4 +438,104 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
 
     return ports.map((p) => serviceNames[p] ?? '$p').join(' • ');
   }
+
+  void _showRenameDialog(
+    BuildContext context,
+    WidgetRef ref,
+    SubnetScanResult item,
+    String currentCustomName,
+  ) {
+    final controller = TextEditingController(text: currentCustomName);
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AppColors.surfaceCard,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: const BorderSide(color: AppColors.border),
+        ),
+        title: Row(
+          children: [
+            Icon(
+              item.isMaster ? Icons.router : Icons.hub,
+              color: AppColors.primaryLight,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            const Text(
+              'Set Device Name',
+              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Target: ${item.ip} ${item.macAddress.isNotEmpty ? "(${item.macAddress})" : ""}',
+              style: const TextStyle(
+                fontFamily: 'monospace',
+                fontSize: 11,
+                color: AppColors.textSecondary,
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Role: ${item.role.isNotEmpty ? item.role : (item.isQ11Device ? "Motorola Q11 Node" : "Network Host")}',
+              style: const TextStyle(
+                fontSize: 11,
+                color: AppColors.primaryLight,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'Friendly Device Name',
+                hintText: item.isMaster ? 'Living Room Gateway' : 'Office Satellite',
+                prefixIcon: const Icon(Icons.label, size: 18),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          if (currentCustomName.isNotEmpty)
+            TextButton(
+              onPressed: () {
+                ref.read(diagnosticsProvider.notifier).updateDeviceCustomName(
+                      item.ip,
+                      '',
+                      macAddress: item.macAddress,
+                    );
+                Navigator.pop(ctx);
+              },
+              child: const Text(
+                'Clear',
+                style: TextStyle(color: AppColors.error),
+              ),
+            ),
+          ElevatedButton(
+            onPressed: () {
+              final newName = controller.text.trim();
+              ref.read(diagnosticsProvider.notifier).updateDeviceCustomName(
+                    item.ip,
+                    newName,
+                    macAddress: item.macAddress,
+                  );
+              Navigator.pop(ctx);
+            },
+            child: const Text('Save Name'),
+          ),
+        ],
+      ),
+    );
+  }
 }
+

@@ -97,5 +97,23 @@ void main() {
       expect(freshStorage.getSatelliteNodes().length, equals(1));
       expect(freshStorage.getWifiConfig().home24Ssid, equals('MeshHome24'));
     });
+
+    test('saves and remembers custom device names by IP and MAC', () async {
+      await storage.setDeviceName('10.10.11.1', 'Living Room Gateway');
+      await storage.setDeviceName('c8:c7:50:dd:b5:18', 'Upstairs Bedroom Satellite');
+
+      expect(storage.getDeviceName('10.10.11.1'), equals('Living Room Gateway'));
+      expect(storage.getDeviceName('c8:c7:50:dd:b5:18'), equals('Upstairs Bedroom Satellite'));
+
+      // Case insensitive retrieval
+      expect(storage.getDeviceName('C8:C7:50:DD:B5:18'), equals('Upstairs Bedroom Satellite'));
+
+      final all = storage.getCustomDeviceNames();
+      expect(all.length, equals(2));
+
+      // Clear name
+      await storage.setDeviceName('10.10.11.1', '');
+      expect(storage.getDeviceName('10.10.11.1'), isNull);
+    });
   });
 }

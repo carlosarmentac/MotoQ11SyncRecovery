@@ -134,6 +134,7 @@ class Q11LocalStorage {
       'masterNode': getMasterNode().toJson(),
       'satelliteNodes': getSatelliteNodes().map((it) => it.toJson()).toList(),
       'wifiConfig': getWifiConfig().toJson(),
+      'customDeviceNames': getCustomDeviceNames(),
     };
     return const JsonEncoder.withIndent('  ').convert(root);
   }
@@ -162,13 +163,51 @@ class Q11LocalStorage {
         await saveWifiConfig(
             WifiMeshConfig.fromJson(root['wifiConfig'] as Map<String, dynamic>));
       }
+      if (root.containsKey('customDeviceNames')) {
+        final names = root['customDeviceNames'] as Map<String, dynamic>;
+        for (final entry in names.entries) {
+          await setDeviceName(entry.key, entry.value.toString());
+        }
+      }
       return true;
     } catch (_) {
       return false;
     }
   }
 
+  // ─── Custom Device Alias / Names Storage ───────────────────────────────────
+  static const String keyCustomDeviceNames = 'custom_device_names';
+
+  Map<String, String> getCustomDeviceNames() {
+    final jsonStr = _prefs.getString(keyCustomDeviceNames);
+    if (jsonStr == null || jsonStr.isEmpty) return {};
+    try {
+      final map = jsonDecode(jsonStr) as Map<String, dynamic>;
+      return map.map((k, v) => MapEntry(k, v.toString()));
+    } catch (_) {
+      return {};
+    }
+  }
+
+  String? getDeviceName(String identifier) {
+    final names = getCustomDeviceNames();
+    return names[identifier.toLowerCase()] ?? names[identifier];
+  }
+
+  Future<void> setDeviceName(String identifier, String name) async {
+    final names = Map<String, String>.from(getCustomDeviceNames());
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) {
+      names.remove(identifier.toLowerCase());
+      names.remove(identifier);
+    } else {
+      names[identifier.toLowerCase()] = trimmed;
+    }
+    await _prefs.setString(keyCustomDeviceNames, jsonEncode(names));
+  }
+
   Future<void> clearAll() async {
     await _prefs.clear();
   }
 }
+

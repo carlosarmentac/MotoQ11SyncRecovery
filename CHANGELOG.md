@@ -22,6 +22,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
     - Automatic physical LAN subnet detection (`LocalNetworkDetector`) filtering out virtual interfaces (Docker bridges, VPNs, WireGuard, Tailscale).
     - Host ARP table integration (`ArpHelper`) matching Motorola OUI prefixes (`c8:c7:50`, etc.).
     - Characteristic multi-port probing (`22 Dropbear SSH`, `53 DNS`, `80 Motosync Web UI`, `443 HTTPS`, `8080 HTTP Alt`, `7681 ttyd Web Terminal`) to reliably discriminate Motorola Q11 Master Gateway from Mesh Satellites and other non-Motorola LAN hosts.
+    - Default gateway and routing correlation to automatically assign Master Gateway vs. numbered Mesh Satellite roles.
+    - Custom friendly device naming & alias persistence (`Q11LocalStorage`) remembering user-assigned labels (e.g., "Living Room Gateway", "Office Satellite") indexed by IP and MAC address.
   - High-performance subnet port scanner (`1..254`) with device fingerprinting, role tagging, and RTT latency measurements.
   - ICMP Ping and Tracepath execution with real-time hop discovery and dark console visualization.
   - DHCP lease client polling via SSH `/tmp/dhcp.leases` inspection.
@@ -30,12 +32,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Google Fonts Inter typography hierarchy.
   - Interactive Animated Mesh Canvas (`TopologyCanvasPainter`) featuring pulse waves, cubic Bezier backhaul lines, and moving packet flow effects.
   - Clean Material 3 NavigationBar with 3 primary screens: Setup Wizard, Mesh Topology, and Hardware Guides.
+  - Interactive device renaming dialog in network diagnostics with quick clear and instant state updates.
 - **Storage & Backup**:
   - Local persistence via `SharedPreferences` with zero cloud lock-in.
-  - Full JSON configuration export and import dialogs with clipboard and system share sheet integrations.
+  - Full JSON configuration export and import dialogs with clipboard and system share sheet integrations, including remembered custom device names.
 - **Internationalization (i18n)**:
   - English and Spanish (ES-MX) localized dictionaries with instant runtime language switching.
 - **Hardware Guides & Diagnostics**:
   - Dedicated hardware documentation screen covering 15-second physical reset pinhole procedure, rear ports guide (WAN, LAN, USB-C), front LED status indicator matrix, and CGI exploit vector architecture.
 - **Test Suite**:
-  - 13 automated unit and widget tests covering QR parser formats, JSON configuration backup, network output parsers, and widget smoke tests (100% pass rate).
+  - 18 automated unit and widget tests covering QR parser formats, JSON configuration backup, custom device naming persistence, network output parsers, and widget smoke tests (100% pass rate).
+

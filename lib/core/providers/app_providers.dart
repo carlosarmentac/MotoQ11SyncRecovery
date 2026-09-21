@@ -124,3 +124,25 @@ final wifiMeshConfigProvider =
     StateNotifierProvider<WifiMeshConfigNotifier, WifiMeshConfig>((ref) {
   return WifiMeshConfigNotifier(ref.watch(localStorageProvider));
 });
+
+// ─── Custom Device Names / Alias Provider ─────────────────────────────────────
+
+class CustomDeviceNamesNotifier extends StateNotifier<Map<String, String>> {
+  final Q11LocalStorage _storage;
+  CustomDeviceNamesNotifier(this._storage) : super(_storage.getCustomDeviceNames());
+
+  Future<void> setDeviceName(String identifier, String name) async {
+    await _storage.setDeviceName(identifier, name);
+    state = _storage.getCustomDeviceNames();
+  }
+
+  void refreshFromStorage() {
+    state = _storage.getCustomDeviceNames();
+  }
+}
+
+final customDeviceNamesProvider =
+    StateNotifierProvider<CustomDeviceNamesNotifier, Map<String, String>>((ref) {
+  return CustomDeviceNamesNotifier(ref.watch(localStorageProvider));
+});
+
