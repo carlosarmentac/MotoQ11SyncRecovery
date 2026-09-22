@@ -2,9 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../../../../core/constants/app_strings.dart';
+import '../../../../core/providers/app_providers.dart';
 import '../../../../core/theme/app_colors.dart';
 import '../../../diagnostics/providers/diagnostics_provider.dart';
 import '../../../models/models.dart';
+import '../../../scanner/presentation/qr_scanner_dialog.dart';
 
 class SatelliteNodeCard extends StatelessWidget {
   final Q11Device satellite;
@@ -88,9 +90,23 @@ class SatelliteNodeCard extends StatelessWidget {
                 Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      AppStrings.tr('label_default_ssid', lang),
-                      style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          AppStrings.tr('label_default_ssid', lang),
+                          style: const TextStyle(fontSize: 10, color: AppColors.textSecondary),
+                        ),
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(Icons.edit, size: 13, color: AppColors.textSecondary),
+                          tooltip: AppStrings.tr('btn_edit_credentials', lang),
+                          visualDensity: VisualDensity.compact,
+                          padding: EdgeInsets.zero,
+                          constraints: const BoxConstraints(minWidth: 18, minHeight: 18),
+                          onPressed: () => _showEditCredentialsSatelliteDialog(context, lang),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -432,5 +448,104 @@ class SatelliteNodeCard extends StatelessWidget {
       ),
     );
   }
-}
 
+  void _showEditCredentialsSatelliteDialog(BuildContext context, String lang) {
+    final ssidCtrl = TextEditingController(text: satellite.ssidDefault);
+    final passCtrl = TextEditingController(text: satellite.wifiPassword);
+
+    showDialog(
+      context: context,
+      builder: (ctx) => Consumer(
+        builder: (context, ref, _) => StatefulBuilder(
+          builder: (context, setModalState) {
+            return AlertDialog(
+              title: Row(
+                children: [
+                  const Icon(Icons.wifi_password, color: AppColors.primaryLight, size: 20),
+                  const SizedBox(width: 8),
+                  Text(
+                    AppStrings.tr('edit_credentials_title', lang),
+                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ],
+              ),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Target: ${satellite.ipAddress} ${satellite.mac.isNotEmpty ? "(${satellite.mac})" : ""}',
+                      style: const TextStyle(
+                        fontFamily: 'monospace',
+                        fontSize: 11,
+                        color: AppColors.textSecondary,
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    OutlinedButton.icon(
+                      icon: const Icon(Icons.qr_code_scanner, size: 18),
+                      label: Text(AppStrings.tr('btn_scan_qr', lang)),
+                      onPressed: () async {
+                        final qrResult = await QrScannerDialog.show(
+                          context,
+                          title: 'Satellite QR Label',
+                          language: lang,
+                        );
+                        if (qrResult != null) {
+                          setModalState(() {
+                            ssidCtrl.text = qrResult.defaultSsid;
+                            passCtrl.text = qrResult.defaultPassword;
+                          });
+                        }
+                      },
+                    ),
+                    const SizedBox(height: 14),
+                    TextField(
+                      controller: ssidCtrl,
+                      decoration: InputDecoration(
+                        labelText: AppStrings.tr('label_default_ssid', lang),
+                        hintText: 'q11-xxxx',
+                        prefixIcon: const Icon(Icons.wifi, size: 18),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    TextField(
+                      controller: passCtrl,
+                      decoration: InputDecoration(
+                        labelText: AppStrings.tr('label_wifi_password', lang),
+                        prefixIcon: const Icon(Icons.lock_outline, size: 18),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(ctx),
+                  child: Text(AppStrings.tr('btn_cancel', lang)),
+                ),
+                ElevatedButton(
+                  onPressed: () {
+                    final newSsid = ssidCtrl.text.trim();
+                    final newPass = passCtrl.text.trim();
+                    final updated = satellite.copyWith(
+                      ssidDefault: newSsid.isNotEmpty ? newSsid : satellite.ssidDefault,
+                      wifiPassword: newPass,
+                    );
+                    ref.read(satellitesProvider.notifier).saveSatellite(updated);
+                    Navigator.pop(ctx);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text(AppStrings.tr('credentials_saved_toast', lang))),
+                    );
+                  },
+                  child: Text(AppStrings.tr('btn_save', lang)),
+                ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}

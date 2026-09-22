@@ -221,13 +221,6 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                       ),
                       const SizedBox(height: 16),
 
-                      // Diagnostics & Subnet Scanner Card
-                      NetworkDiagnosticsCard(
-                        defaultTargetIp: master.ipAddress,
-                        language: lang,
-                      ),
-                      const SizedBox(height: 16),
-
                       // Satellites Section Header
                       Row(
                         mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -365,6 +358,13 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                             );
                           },
                         ),
+                      const SizedBox(height: 20),
+
+                      // Diagnostics & Subnet Scanner Card (Placed at bottom)
+                      NetworkDiagnosticsCard(
+                        defaultTargetIp: master.ipAddress,
+                        language: lang,
+                      ),
                       const SizedBox(height: 32),
                     ],
                   ),
@@ -599,14 +599,44 @@ class _NetworkTopologyViewState extends ConsumerState<NetworkTopologyView>
                                     ),
                                   ],
                                 ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  'MAC: ${item.macAddress.isNotEmpty ? item.macAddress : "Unknown"} • Ports: ${item.portsOpen.join(', ')}',
-                                  style: const TextStyle(
-                                    fontSize: 11,
-                                    fontFamily: 'monospace',
-                                    color: AppColors.textSecondary,
-                                  ),
+                                const SizedBox(height: 4),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 4,
+                                  crossAxisAlignment: WrapCrossAlignment.center,
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.surfaceVariant,
+                                        borderRadius: BorderRadius.circular(4),
+                                        border: Border.all(color: AppColors.border, width: 0.8),
+                                      ),
+                                      child: Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          const Icon(Icons.fingerprint, size: 12, color: AppColors.primaryLight),
+                                          const SizedBox(width: 4),
+                                          Text(
+                                            'MAC: ${item.macAddress.isNotEmpty ? item.macAddress : "Unknown / Pending ARP"}',
+                                            style: TextStyle(
+                                              fontSize: 10.5,
+                                              fontFamily: 'monospace',
+                                              fontWeight: FontWeight.w600,
+                                              color: item.macAddress.isNotEmpty ? Colors.white : AppColors.textSecondary,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Text(
+                                      'Ports: ${item.portsOpen.join(', ')}',
+                                      style: const TextStyle(
+                                        fontSize: 10.5,
+                                        color: AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
                               ],
                             ),

@@ -295,29 +295,43 @@ class _NetworkDiagnosticsCardState extends ConsumerState<NetworkDiagnosticsCard>
                               ),
                             ],
                           ),
-                          const SizedBox(height: 4),
-                          Row(
+                          const SizedBox(height: 5),
+                          Wrap(
+                            spacing: 10,
+                            runSpacing: 4,
+                            crossAxisAlignment: WrapCrossAlignment.center,
                             children: [
-                              if (item.macAddress.isNotEmpty) ...[
-                                Text(
-                                  'MAC: ${item.macAddress}',
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                    fontSize: 10,
-                                    color: AppColors.textSecondary,
-                                  ),
+                              Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                decoration: BoxDecoration(
+                                  color: AppColors.surfaceVariant,
+                                  borderRadius: BorderRadius.circular(4),
+                                  border: Border.all(color: AppColors.border, width: 0.8),
                                 ),
-                                const SizedBox(width: 12),
-                              ],
-                              Expanded(
-                                child: Text(
-                                  'Services: ${_formatPorts(item.portsOpen)}',
-                                  style: const TextStyle(
-                                    fontSize: 10,
-                                    color: AppColors.textSecondary,
-                                  ),
-                                  overflow: TextOverflow.ellipsis,
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const Icon(Icons.fingerprint, size: 12, color: AppColors.primaryLight),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      'MAC: ${item.macAddress.isNotEmpty ? item.macAddress : "Unknown / Pending ARP"}',
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 10.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: item.macAddress.isNotEmpty ? Colors.white : AppColors.textSecondary,
+                                      ),
+                                    ),
+                                  ],
                                 ),
+                              ),
+                              Text(
+                                'Services: ${_formatPorts(item.portsOpen)}',
+                                style: const TextStyle(
+                                  fontSize: 10,
+                                  color: AppColors.textSecondary,
+                                ),
+                                overflow: TextOverflow.ellipsis,
                               ),
                             ],
                           ),

@@ -60,6 +60,8 @@ class MasterNodeNotifier extends StateNotifier<Q11Device> {
     await _storage.saveMasterNode(updated);
   }
 
+  Future<void> saveMasterNode(Q11Device updated) async => update(updated);
+
   void refreshFromStorage() {
     state = _storage.getMasterNode();
   }

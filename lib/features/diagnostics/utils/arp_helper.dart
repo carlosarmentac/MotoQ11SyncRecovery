@@ -25,28 +25,25 @@ class ArpHelper {
             }
           }
         }
-        if (map.isNotEmpty) return map;
       }
     } catch (_) {}
 
-    // 2. Secondary: `ip neigh show`
+    // 2. Secondary: `ip neigh show` (captures dynamic STALE, REACHABLE, DELAY entries)
     try {
       final res = await Process.run('ip', ['neigh', 'show']);
       if (res.exitCode == 0) {
         final lines = (res.stdout as String).split('\n');
         for (final line in lines) {
           final parts = line.trim().split(RegExp(r'\s+'));
-          // e.g. "10.10.11.1 dev wlp2s0 lladdr c8:c7:50:dd:b6:20 REACHABLE"
           final lladdrIndex = parts.indexOf('lladdr');
           if (lladdrIndex != -1 && lladdrIndex + 1 < parts.length && parts.isNotEmpty) {
             final ip = parts[0];
             final mac = parts[lladdrIndex + 1].toLowerCase();
             if (mac.contains(':') && mac != '00:00:00:00:00:00') {
-              map[ip] = mac;
+              map[ip] ??= mac;
             }
           }
         }
-        if (map.isNotEmpty) return map;
       }
     } catch (_) {}
 
@@ -61,7 +58,7 @@ class ArpHelper {
             final ip = parts[0].replaceAll(RegExp(r'[()]'), '');
             final mac = parts[2].toLowerCase();
             if (mac.contains(':') && mac != '00:00:00:00:00:00') {
-              map[ip] = mac;
+              map[ip] ??= mac;
             }
           }
         }

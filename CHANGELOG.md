@@ -18,6 +18,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
   - Custom names synchronize across storage, `masterNodeProvider`, `satellitesProvider`, and subnet scan results.
 - **Enhanced QR Code Label Scanning**:
   - Scanned QR label data (MAC, serial number, default SSID, and password) now maps to node models and preserves or auto-suggests the node's friendly name.
+- **Subnet Scanner Relocation to Bottom of Mesh Topology**:
+  - Relocated the Diagnostics & Subnet Scanner card to the bottom of the Mesh Topology screen, placing primary focus on the Mesh canvas, Master node, and Satellite nodes.
+- **Prominent MAC Address Display for Discovered Devices**:
+  - Subnet discovery results and topology views now showcase a dedicated, stylized badge with the resolved MAC address alongside port services.
+  - Multi-source ARP resolution combining `/proc/net/arp`, `ip neigh show`, and `arp -n` to reliably identify hardware MACs across reachable and stale network cache entries.
+- **Manual and QR Wi-Fi SSID & Password Editing on Topology Cards**:
+  - Added direct credential edit buttons on both Master Node and Satellite Node cards in Mesh Topology.
+  - Interactive credential edit dialogs allow changing default SSID and Wi-Fi password manually or scanning the device's QR code on the fly.
 - **Automatic Satellite Slot Allocation for Selected Kit Size**:
   - Selecting kit size (1, 2, or 3 nodes) automatically generates satellite slots in state and local storage, enabling immediate configuration and manual/QR credential entry.
 
