@@ -167,12 +167,12 @@ Compress-Archive -Path build\windows\x64\runner\Release\* -DestinationPath motoq
   - Direct backup of device `/etc/config` over SSH encoded into portable Base64 `tar.gz` archives.
   - Interactive restore dialog pushing configurations back to the router and triggering network service restarts (`/etc/init.d/network restart`).
 - **Web Admin & Web Terminal Shortcuts**:
-  - One-click launch of Web Admin UI (`http://<ip>:8080`).
+  - One-click launch of Web Admin UI (`http://<ip>/cgi-bin/admin.sh`).
   - One-click launch of Web Terminal (`http://<ip>:7681`) powered by `ttyd`.
 - **Physical Device LED Identification**:
   - Flashes front LED on the hardware router for 15 seconds (`/sys/class/leds/*`) with live canvas ripple animations to physically identify units in the house.
 - **Live Device Telemetry & Statistics**:
-  - Real-time SSH inspection of system uptime, CPU load average (`/proc/loadavg`), RAM usage & progress bar (`/proc/meminfo`), board name, kernel version, and live active broadcast SSIDs (`uci show wireless`, `iwinfo`).
+  - Real-time inspection of system uptime, CPU load average, RAM usage & progress bar, board name, kernel version, and live active broadcast SSIDs via HTTP scraping of `/cgi-bin/admin.sh` (with SSH fallback).
 - **Integrated Network Speedtest**:
   - Complete multi-stage throughput test measuring latency (ICMP ping), jitter, HTTP download throughput, and HTTP upload throughput against CDN endpoints.
 - **Persistent Friendly Device Naming**: Lets users assign and remember custom names (e.g., *"Living Room Gateway"*, *"Office Satellite"*) indexed by IP and hardware MAC address.
