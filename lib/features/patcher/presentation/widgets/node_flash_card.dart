@@ -95,9 +95,40 @@ class NodeFlashCard extends StatelessWidget {
             children: [
               Expanded(
                 child: TextFormField(
+                  key: ValueKey('name_${device.id}_${device.name}'),
+                  initialValue: device.name,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr('label_friendly_name', lang),
+                    hintText: device.role == NodeRole.master ? 'Master Gateway' : 'Satellite 1',
+                    prefixIcon: const Icon(Icons.label_outline, size: 16),
+                  ),
+                  onChanged: (val) => onDeviceChanged(device.copyWith(name: val.trim())),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('ip_${device.id}_${device.ipAddress}'),
+                  initialValue: device.ipAddress,
+                  decoration: InputDecoration(
+                    labelText: AppStrings.tr('label_router_ip', lang),
+                    prefixIcon: const Icon(Icons.settings_ethernet, size: 16),
+                  ),
+                  onChanged: (val) => onDeviceChanged(device.copyWith(ipAddress: val.trim())),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('ssid_${device.id}_${device.ssidDefault}'),
                   initialValue: device.ssidDefault,
                   decoration: InputDecoration(
                     labelText: AppStrings.tr('label_default_ssid', lang),
+                    prefixIcon: const Icon(Icons.wifi, size: 16),
                   ),
                   onChanged: (val) => onDeviceChanged(device.copyWith(ssidDefault: val.trim())),
                 ),
@@ -105,9 +136,11 @@ class NodeFlashCard extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: TextFormField(
+                  key: ValueKey('pass_${device.id}_${device.wifiPassword}'),
                   initialValue: device.wifiPassword,
                   decoration: InputDecoration(
                     labelText: AppStrings.tr('label_wifi_password', lang),
+                    prefixIcon: const Icon(Icons.lock_outline, size: 16),
                   ),
                   onChanged: (val) => onDeviceChanged(device.copyWith(wifiPassword: val.trim())),
                 ),
@@ -115,12 +148,34 @@ class NodeFlashCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 8),
-          TextFormField(
-            initialValue: device.ipAddress,
-            decoration: InputDecoration(
-              labelText: AppStrings.tr('label_router_ip', lang),
-            ),
-            onChanged: (val) => onDeviceChanged(device.copyWith(ipAddress: val.trim())),
+          Row(
+            children: [
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('mac_${device.id}_${device.mac}'),
+                  initialValue: device.mac,
+                  decoration: const InputDecoration(
+                    labelText: 'MAC Address',
+                    hintText: 'c8:c7:50:...',
+                    prefixIcon: Icon(Icons.fingerprint, size: 16),
+                  ),
+                  onChanged: (val) => onDeviceChanged(device.copyWith(mac: val.trim())),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: TextFormField(
+                  key: ValueKey('sn_${device.id}_${device.serialNumber}'),
+                  initialValue: device.serialNumber,
+                  decoration: const InputDecoration(
+                    labelText: 'Serial Number',
+                    hintText: '2081AA...',
+                    prefixIcon: Icon(Icons.numbers, size: 16),
+                  ),
+                  onChanged: (val) => onDeviceChanged(device.copyWith(serialNumber: val.trim())),
+                ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
           ElevatedButton.icon(

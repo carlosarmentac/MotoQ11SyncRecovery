@@ -50,6 +50,7 @@ class _ImportConfigDialogState extends ConsumerState<ImportConfigDialog> {
       ref.invalidate(masterNodeProvider);
       ref.invalidate(satellitesProvider);
       ref.invalidate(wifiMeshConfigProvider);
+      ref.invalidate(customDeviceNamesProvider);
 
       widget.onImportSuccess?.call();
 

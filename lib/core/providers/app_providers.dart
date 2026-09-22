@@ -92,6 +92,29 @@ class SatellitesNotifier extends StateNotifier<List<Q11Device>> {
     state = _storage.getSatelliteNodes();
   }
 
+  Future<void> ensureSatelliteSlots(int targetCount) async {
+    final current = _storage.getSatelliteNodes().toList();
+    if (current.length < targetCount) {
+      for (int i = current.length; i < targetCount; i++) {
+        final nodeNumber = i + 1;
+        current.add(Q11Device(
+          id: 'sat-0$nodeNumber',
+          name: 'Satellite $nodeNumber',
+          role: NodeRole.satellite,
+          ssidDefault: 'q11-xxxx',
+          wifiPassword: '',
+          ipAddress: '192.168.1.${nodeNumber + 1}',
+          patchStatus: PatchStatus.idle,
+          isOnline: false,
+        ));
+      }
+      for (final sat in current) {
+        await _storage.saveSatelliteNode(sat);
+      }
+      state = _storage.getSatelliteNodes();
+    }
+  }
+
   void refreshFromStorage() {
     state = _storage.getSatelliteNodes();
   }

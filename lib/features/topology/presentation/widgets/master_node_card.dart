@@ -75,6 +75,15 @@ class MasterNodeCard extends StatelessWidget {
                       node.name.isNotEmpty ? node.name : 'Master Gateway (Q11)',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
                     ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.edit_note, size: 18, color: AppColors.textSecondary),
+                      tooltip: AppStrings.tr('btn_edit_friendly_name', lang),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                      onPressed: () => _showRenameMasterDialog(context, lang),
+                    ),
                   ],
                 ),
                 Container(
@@ -613,6 +622,90 @@ class MasterNodeCard extends StatelessWidget {
             child: Text(AppStrings.tr('btn_restore_device', lang)),
           ),
         ],
+      ),
+    );
+  }
+
+  void _showRenameMasterDialog(BuildContext context, String lang) {
+    final controller = TextEditingController(text: node.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => Consumer(
+        builder: (context, ref, _) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.edit_note, color: AppColors.primaryLight, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                AppStrings.tr('btn_edit_friendly_name', lang),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Target: ${node.ipAddress} ${node.mac.isNotEmpty ? "(${node.mac})" : ""}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: AppStrings.tr('label_friendly_name', lang),
+                  hintText: AppStrings.tr('hint_friendly_name', lang),
+                  prefixIcon: const Icon(Icons.label, size: 18),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppStrings.tr('btn_cancel', lang)),
+            ),
+            if (node.name.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  ref.read(diagnosticsProvider.notifier).updateDeviceCustomName(
+                        node.ipAddress,
+                        '',
+                        macAddress: node.mac,
+                      );
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(AppStrings.tr('name_cleared_toast', lang))),
+                  );
+                },
+                child: Text(
+                  AppStrings.tr('btn_clear', lang),
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = controller.text.trim();
+                ref.read(diagnosticsProvider.notifier).updateDeviceCustomName(
+                      node.ipAddress,
+                      newName.isNotEmpty ? newName : 'Master Gateway',
+                      macAddress: node.mac,
+                    );
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(AppStrings.tr('name_saved_toast', lang))),
+                );
+              },
+              child: Text(AppStrings.tr('btn_save', lang)),
+            ),
+          ],
+        ),
       ),
     );
   }

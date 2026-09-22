@@ -106,16 +106,38 @@ class DiagnosticsController extends StateNotifier<DiagnosticsState> {
 
   Future<void> updateDeviceCustomName(String identifier, String newName, {String? macAddress}) async {
     final storage = _ref.read(localStorageProvider);
+    final trimmedName = newName.trim();
     if (macAddress != null && macAddress.isNotEmpty) {
-      await storage.setDeviceName(macAddress, newName);
+      await storage.setDeviceName(macAddress, trimmedName);
     }
-    await storage.setDeviceName(identifier, newName);
+    await storage.setDeviceName(identifier, trimmedName);
     _ref.read(customDeviceNamesProvider.notifier).refreshFromStorage();
 
-    // Also update current state in-place
+    // 1. Sync with Master Node if matching IP, MAC, or ID
+    final master = _ref.read(masterNodeProvider);
+    if (master.ipAddress == identifier ||
+        master.id == identifier ||
+        (macAddress != null && macAddress.isNotEmpty && master.mac.toLowerCase() == macAddress.toLowerCase())) {
+      final effectiveName = trimmedName.isNotEmpty ? trimmedName : 'Master Gateway';
+      await _ref.read(masterNodeProvider.notifier).update(master.copyWith(name: effectiveName));
+    }
+
+    // 2. Sync with Satellites if matching IP, MAC, or ID
+    final satellites = _ref.read(satellitesProvider);
+    for (int i = 0; i < satellites.length; i++) {
+      final sat = satellites[i];
+      if (sat.ipAddress == identifier ||
+          sat.id == identifier ||
+          (macAddress != null && macAddress.isNotEmpty && sat.mac.toLowerCase() == macAddress.toLowerCase())) {
+        final effectiveName = trimmedName.isNotEmpty ? trimmedName : 'Satellite ${sat.ssidDefault}';
+        await _ref.read(satellitesProvider.notifier).updateSatellite(i, sat.copyWith(name: effectiveName));
+      }
+    }
+
+    // 3. Also update current scan list in-place
     final updatedList = state.subnetResults.map((r) {
       if (r.ip == identifier || (macAddress != null && r.macAddress == macAddress)) {
-        return r.copyWith(customName: newName.trim());
+        return r.copyWith(customName: trimmedName);
       }
       return r;
     }).toList();

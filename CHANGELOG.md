@@ -6,6 +6,23 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 
 ---
 
+## [0.2.2] - 2026-09-21
+
+### Added
+- **Manual Device Credentials & Identification Entry**:
+  - Full manual input fields on Setup Wizard cards for Friendly Name, IP address, default SSID, Wi-Fi password, MAC address, and Serial Number.
+  - Form fields bind dynamic `ValueKey` instances ensuring instant updates without getting overwritten by background scans or provider refreshes.
+- **Direct Friendly Name Editing on Mesh Topology Cards**:
+  - Added dedicated edit icon buttons (`Icons.edit_note`) on both Master Node and Satellite Node cards in Mesh Topology.
+  - Interactive rename dialog allows assigning or clearing friendly aliases (e.g. *"Living Room Gateway"*, *"Office Satellite"*).
+  - Custom names synchronize across storage, `masterNodeProvider`, `satellitesProvider`, and subnet scan results.
+- **Enhanced QR Code Label Scanning**:
+  - Scanned QR label data (MAC, serial number, default SSID, and password) now maps to node models and preserves or auto-suggests the node's friendly name.
+- **Automatic Satellite Slot Allocation for Selected Kit Size**:
+  - Selecting kit size (1, 2, or 3 nodes) automatically generates satellite slots in state and local storage, enabling immediate configuration and manual/QR credential entry.
+
+---
+
 ## [0.2.1] - 2026-09-21
 
 ### Fixed

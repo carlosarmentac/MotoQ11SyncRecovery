@@ -59,6 +59,9 @@ class SetupWizardScreen extends ConsumerWidget {
           macAddress: result.macAddress,
           ssidDefault: result.defaultSsid,
           wifiPassword: result.defaultPassword,
+          name: current.name.isNotEmpty && !current.name.startsWith('Satellite Node')
+              ? current.name
+              : 'Satellite ${result.defaultSsid}',
         );
         await ref.read(satellitesProvider.notifier).updateSatellite(index, updated);
       }
@@ -205,8 +208,9 @@ class SetupWizardScreen extends ConsumerWidget {
                         child: KitSizeSelector(
                           selectedSize: kitSize,
                           language: lang,
-                          onKitSizeChanged: (size) {
-                            ref.read(kitSizeProvider.notifier).setKitSize(size);
+                          onKitSizeChanged: (size) async {
+                            await ref.read(kitSizeProvider.notifier).setKitSize(size);
+                            await ref.read(satellitesProvider.notifier).ensureSatelliteSlots(size - 1);
                           },
                         ),
                       ),

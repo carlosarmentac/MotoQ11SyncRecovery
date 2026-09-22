@@ -39,6 +39,9 @@ class _AddSatelliteDialogState extends State<AddSatelliteDialog> {
   final _ipController = TextEditingController(text: '192.168.1.2');
   BackhaulType _backhaul = BackhaulType.wifi5g;
 
+  String _mac = '';
+  String _serialNumber = '';
+
   @override
   void dispose() {
     _nameController.dispose();
@@ -59,6 +62,11 @@ class _AddSatelliteDialogState extends State<AddSatelliteDialog> {
       setState(() {
         _ssidController.text = result.defaultSsid;
         _passwordController.text = result.defaultPassword;
+        _mac = result.mac;
+        _serialNumber = result.serialNumber;
+        if (_nameController.text.trim().isEmpty || _nameController.text == 'Satellite Node') {
+          _nameController.text = 'Satellite ${result.defaultSsid}';
+        }
       });
     }
   }
@@ -76,6 +84,8 @@ class _AddSatelliteDialogState extends State<AddSatelliteDialog> {
       ssidDefault: ssid,
       wifiPassword: password,
       ipAddress: ip.isNotEmpty ? ip : '192.168.1.2',
+      mac: _mac,
+      serialNumber: _serialNumber,
       backhaul: _backhaul,
       patchStatus: PatchStatus.pending,
       isOnline: false,

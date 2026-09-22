@@ -47,6 +47,15 @@ class SatelliteNodeCard extends StatelessWidget {
                           : 'Satellite ${satellite.ssidDefault}',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
+                    const SizedBox(width: 4),
+                    IconButton(
+                      icon: const Icon(Icons.edit_note, size: 16, color: AppColors.textSecondary),
+                      tooltip: AppStrings.tr('btn_edit_friendly_name', lang),
+                      visualDensity: VisualDensity.compact,
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+                      onPressed: () => _showRenameSatelliteDialog(context, lang),
+                    ),
                   ],
                 ),
                 IconButton(
@@ -337,6 +346,90 @@ class SatelliteNodeCard extends StatelessWidget {
         Text(label, style: const TextStyle(fontSize: 12, color: AppColors.textSecondary)),
         Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, fontFamily: 'monospace')),
       ],
+    );
+  }
+
+  void _showRenameSatelliteDialog(BuildContext context, String lang) {
+    final controller = TextEditingController(text: satellite.name);
+    showDialog(
+      context: context,
+      builder: (ctx) => Consumer(
+        builder: (context, ref, _) => AlertDialog(
+          title: Row(
+            children: [
+              const Icon(Icons.edit_note, color: AppColors.primaryLight, size: 20),
+              const SizedBox(width: 8),
+              Text(
+                AppStrings.tr('btn_edit_friendly_name', lang),
+                style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Target: ${satellite.ipAddress} ${satellite.mac.isNotEmpty ? "(${satellite.mac})" : ""}',
+                style: const TextStyle(
+                  fontFamily: 'monospace',
+                  fontSize: 11,
+                  color: AppColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 14),
+              TextField(
+                controller: controller,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: AppStrings.tr('label_friendly_name', lang),
+                  hintText: AppStrings.tr('hint_friendly_name', lang),
+                  prefixIcon: const Icon(Icons.label, size: 18),
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: Text(AppStrings.tr('btn_cancel', lang)),
+            ),
+            if (satellite.name.isNotEmpty)
+              TextButton(
+                onPressed: () {
+                  ref.read(diagnosticsProvider.notifier).updateDeviceCustomName(
+                        satellite.ipAddress,
+                        '',
+                        macAddress: satellite.mac,
+                      );
+                  Navigator.pop(ctx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text(AppStrings.tr('name_cleared_toast', lang))),
+                  );
+                },
+                child: Text(
+                  AppStrings.tr('btn_clear', lang),
+                  style: const TextStyle(color: AppColors.error),
+                ),
+              ),
+            ElevatedButton(
+              onPressed: () {
+                final newName = controller.text.trim();
+                ref.read(diagnosticsProvider.notifier).updateDeviceCustomName(
+                      satellite.ipAddress,
+                      newName.isNotEmpty ? newName : 'Satellite ${satellite.ssidDefault}',
+                      macAddress: satellite.mac,
+                    );
+                Navigator.pop(ctx);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text(AppStrings.tr('name_saved_toast', lang))),
+                );
+              },
+              child: Text(AppStrings.tr('btn_save', lang)),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
